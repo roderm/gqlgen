@@ -1,6 +1,6 @@
 {{- range $input := .Inputs }}
 	{{- if not .HasUnmarshal }}
-	func (ec *executionContext) unmarshalInput{{ .Name }}(ctx context.Context, obj interface{}) ({{.Type | ref}}, error) {
+	func (e *executableSchema) unmarshalInput{{ .Name }}(ctx context.Context, obj interface{}) ({{.Type | ref}}, error) {
 		var it {{.Type | ref}}
 		asMap := map[string]interface{}{}
 		for k, v := range obj.(map[string]interface{}) {
@@ -20,9 +20,9 @@
 			case {{$field.Name|quote}}:
 				var err error
 
-				ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField({{$field.Name|quote}}))
+				ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField({{$field.Name|quote}}))
 				{{- if $field.ImplDirectives }}
-					directive0 := func(ctx context.Context) (interface{}, error) { return ec.{{ $field.TypeReference.UnmarshalFunc }}(ctx, v) }
+					directive0 := func(ctx context.Context) (interface{}, error) { return e.{{ $field.TypeReference.UnmarshalFunc }}(ctx, v) }
 					{{ template "implDirectives" $field }}
 					tmp, err := directive{{$field.ImplDirectives|len}}(ctx)
 					if err != nil {
@@ -30,7 +30,7 @@
 					}
 					if data, ok := tmp.({{ $field.TypeReference.GO | ref }}) ; ok {
 						{{- if $field.IsResolver }}
-							if err = ec.resolvers.{{ $field.ShortInvocation }}; err != nil {
+							if err = e.resolvers.{{ $field.ShortInvocation }}; err != nil {
 								return it, err
 							}
 						{{- else }}
@@ -48,15 +48,15 @@
 					}
 				{{- else }}
 					{{- if $field.IsResolver }}
-						data, err := ec.{{ $field.TypeReference.UnmarshalFunc }}(ctx, v)
+						data, err := e.{{ $field.TypeReference.UnmarshalFunc }}(ctx, v)
 						if err != nil {
 							return it, err
 						}
-						if err = ec.resolvers.{{ $field.ShortInvocation }}; err != nil {
+						if err = e.resolvers.{{ $field.ShortInvocation }}; err != nil {
 							return it, err
 						}
 					{{- else }}
-						it.{{$field.GoFieldName}}, err = ec.{{ $field.TypeReference.UnmarshalFunc }}(ctx, v)
+						it.{{$field.GoFieldName}}, err = e.{{ $field.TypeReference.UnmarshalFunc }}(ctx, v)
 						if err != nil {
 							return it, err
 						}

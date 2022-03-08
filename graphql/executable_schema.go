@@ -14,6 +14,12 @@ type ExecutableSchema interface {
 
 	Complexity(typeName, fieldName string, childComplexity int, args map[string]interface{}) (int, bool)
 	Exec(ctx context.Context) ResponseHandler
+
+	Extend(ExecutableSchema) error
+
+	SchemaSources() []*ast.Source
+	GetRootResolvers() []map[string]func(context.Context, CollectedField) (func(*FieldSet, int) bool, error)
+	GetFieldResolvers() []map[string]func(context.Context, CollectedField, interface{}) (func(*FieldSet, int) bool, error)
 }
 
 // CollectFields returns the set of fields from an ast.SelectionSet where all collected fields satisfy at least one of the GraphQL types

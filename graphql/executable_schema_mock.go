@@ -5,8 +5,10 @@ package graphql
 
 import (
 	"context"
-	"github.com/vektah/gqlparser/v2/ast"
+	"errors"
 	"sync"
+
+	"github.com/vektah/gqlparser/v2/ast"
 )
 
 // Ensure, that ExecutableSchemaMock does implement ExecutableSchema.
@@ -158,6 +160,12 @@ func (mock *ExecutableSchemaMock) Schema() *ast.Schema {
 	return mock.SchemaFunc()
 }
 
+func (mock *ExecutableSchemaMock) Extend(ExecutableSchema) error {
+	return errors.New("not implemented")
+}
+func (mock *ExecutableSchemaMock) SchemaSources() []*ast.Source {
+	return []*ast.Source{}
+}
 // SchemaCalls gets all the calls that were made to Schema.
 // Check the length with:
 //     len(mockedExecutableSchema.SchemaCalls())
@@ -169,4 +177,10 @@ func (mock *ExecutableSchemaMock) SchemaCalls() []struct {
 	calls = mock.calls.Schema
 	mock.lockSchema.RUnlock()
 	return calls
+}
+func (mock *ExecutableSchemaMock) GetRootResolvers() []map[string]func(context.Context, CollectedField) (func(*FieldSet, int) bool, error) {
+	return nil
+}
+func (mock *ExecutableSchemaMock) GetFieldResolvers() []map[string]func(context.Context, CollectedField, interface{}) (func(*FieldSet, int) bool, error) {
+	return nil
 }

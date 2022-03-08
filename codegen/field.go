@@ -106,24 +106,26 @@ func (b *builder) bindField(obj *Object, f *Field) (errret error) {
 	switch {
 	case f.Name == "__schema":
 		f.GoFieldType = GoFieldMethod
-		f.GoReceiverName = "ec"
+		f.GoReceiverName = "e"
 		f.GoFieldName = "introspectSchema"
+		f.MethodHasContext = true
 		return nil
 	case f.Name == "__type":
 		f.GoFieldType = GoFieldMethod
-		f.GoReceiverName = "ec"
+		f.GoReceiverName = "e"
 		f.GoFieldName = "introspectType"
+		f.MethodHasContext = true
 		return nil
 	case f.Name == "_entities":
 		f.GoFieldType = GoFieldMethod
-		f.GoReceiverName = "ec"
+		f.GoReceiverName = "e"
 		f.GoFieldName = "__resolve_entities"
 		f.MethodHasContext = true
 		f.NoErr = true
 		return nil
 	case f.Name == "_service":
 		f.GoFieldType = GoFieldMethod
-		f.GoReceiverName = "ec"
+		f.GoReceiverName = "e"
 		f.GoFieldName = "__resolve__service"
 		f.MethodHasContext = true
 		return nil

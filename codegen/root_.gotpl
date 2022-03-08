@@ -6,6 +6,7 @@
 {{ reserveImport "sync"  }}
 {{ reserveImport "sync/atomic" }}
 {{ reserveImport "errors"  }}
+{{ reserveImport "reflect" }}
 {{ reserveImport "bytes"  }}
 
 {{ reserveImport "github.com/vektah/gqlparser/v2" "gqlparser" }}
@@ -15,11 +16,16 @@
 
 // NewExecutableSchema creates an ExecutableSchema from the ResolverRoot interface.
 func NewExecutableSchema(cfg Config) graphql.ExecutableSchema {
-	return &executableSchema{
+	s := &executableSchema{
 		resolvers: cfg.Resolvers,
 		directives: cfg.Directives,
 		complexity: cfg.Complexity,
+		sources: sources,
+		schema: gqlparser.MustLoadSchema(sources...),
+		fieldResolve: []map[string]func(context.Context, graphql.CollectedField, interface{}) (func(*graphql.FieldSet, int) bool, error){},
+		rootResolve:  []map[string]func(context.Context, graphql.CollectedField) (func(*graphql.FieldSet, int) bool, error){},
 	}
+	return s
 }
 
 type Config struct {
@@ -61,15 +67,62 @@ type executableSchema struct {
 	resolvers  ResolverRoot
 	directives DirectiveRoot
 	complexity ComplexityRoot
+
+	sources      []*ast.Source
+	schema       *ast.Schema
+	fieldResolve []map[string]func(context.Context, graphql.CollectedField, interface{}) (func(*graphql.FieldSet, int) bool, error)
+	rootResolve  []map[string]func(context.Context, graphql.CollectedField) (func(*graphql.FieldSet, int) bool, error)
 }
 
 func (e *executableSchema) Schema() *ast.Schema {
-	return parsedSchema
+	return e.schema
+}
+
+func (e *executableSchema) SchemaSources() []*ast.Source {
+	return e.sources
+}
+
+func (e *executableSchema) Extend(ext graphql.ExecutableSchema) error {
+	e.sources = append(e.sources, ext.SchemaSources()...)
+	newSchema, err := gqlparser.LoadSchema(e.sources...)
+	if err != nil {
+		return err
+	}
+	e.fieldResolve = append(e.fieldResolve, ext.GetFieldResolvers()...)
+	e.rootResolve = append(e.rootResolve, ext.GetRootResolvers()...)
+	e.schema = newSchema
+	return nil
+}
+
+func (e *executableSchema) GetRootResolvers() []map[string]func(context.Context, graphql.CollectedField) (func(*graphql.FieldSet, int) bool, error){
+	return []map[string]func(context.Context, graphql.CollectedField) (func(*graphql.FieldSet, int) bool, error){map[string]func(context.Context, graphql.CollectedField) (func(*graphql.FieldSet, int) bool, error){
+	{{- range $object := .Objects }}
+	{{- if $object.Root }}
+		{{$object.Name|quote}}: e._{{$object.Name}}_resolve_field,
+	{{- end }}
+	{{- end }}
+	}}
+}
+
+func (e *executableSchema) GetFieldResolvers() []map[string]func(context.Context, graphql.CollectedField, interface{}) (func(*graphql.FieldSet, int) bool, error){
+	return  []map[string]func(context.Context, graphql.CollectedField, interface{}) (func(*graphql.FieldSet, int) bool, error){map[string]func(context.Context, field graphql.CollectedField, val interface{}) (func(*graphql.FieldSet, int) bool, error){
+	{{- range $object := .Objects }}
+	{{- if not $object.Root }}
+		{{$object.Name|quote}}: func(context.Context, graphql.CollectedField, interface{}) (func(*graphql.FieldSet, int) bool, error) {
+			obj, ok := val.({{$object.Reference | ref }})
+			if !ok {
+				return nil, errors.New("invalid type")
+			}
+			return e._{{$object.Name}}_resolve_field(ctx, field, obj)
+		},
+	{{- end }}
+	{{- end }}
+	}}
 }
 
 func (e *executableSchema) Complexity(typeName, field string, childComplexity int, rawArgs map[string]interface{}) (int, bool) {
-	ec := executionContext{nil, e}
-	_ = ec
+	// ec := executionContext{nil, e, context.TODO()}
+	// _ = ec
 	switch typeName + "." + field {
 	{{ range $object := .Objects }}
 		{{ if not $object.IsReserved }}
@@ -83,7 +136,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 						break
 						}
 						{{ if $field.Args }}
-							args, err := ec.{{ $field.ArgsFunc }}(context.TODO(),rawArgs)
+							args, err := ec.{{ $field.ArgsFunc }}(&ec,rawArgs)
 							if err != nil {
 							return 0, false
 							}
@@ -101,7 +154,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	rc := graphql.GetOperationContext(ctx)
-	ec := executionContext{rc, e}
+	// ec := executionContext{rc, e, ctx}
 	first := true
 
 	switch rc.Operation.Operation {
@@ -179,18 +232,18 @@ type executionContext struct {
 	*executableSchema
 }
 
-func (ec *executionContext) introspectSchema() (*introspection.Schema, error) {
+func (e *executableSchema) introspectSchema(ctx context.Context) (*introspection.Schema, error) {
 	if ec.DisableIntrospection {
 		return nil, errors.New("introspection disabled")
 	}
-	return introspection.WrapSchema(parsedSchema), nil
+	return introspection.WrapSchema(ec.schema), nil
 }
 
 func (ec *executionContext) introspectType(name string) (*introspection.Type, error) {
 	if ec.DisableIntrospection {
 		return nil, errors.New("introspection disabled")
 	}
-	return introspection.WrapTypeFromDef(parsedSchema, parsedSchema.Types[name]), nil
+	return introspection.WrapTypeFromDef(ec.schema, ec.schema.Types[name]), nil
 }
 
 var sources = []*ast.Source{
@@ -198,4 +251,3 @@ var sources = []*ast.Source{
 	{Name: {{$source.Name|quote}}, Input: {{$source.Input|rawQuote}}, BuiltIn: {{$source.BuiltIn}}},
 {{- end }}
 }
-var parsedSchema = gqlparser.MustLoadSchema(sources...)

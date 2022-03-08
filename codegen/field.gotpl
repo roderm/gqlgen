@@ -1,13 +1,14 @@
 {{- range $object := .Objects }}{{- range $field := $object.Fields }}
 
-func (ec *executionContext) _{{$object.Name}}_{{$field.Name}}(ctx context.Context, field graphql.CollectedField{{ if not $object.Root }}, obj {{$object.Reference | ref}}{{end}}) (ret {{ if $object.Stream }}func(){{ end }}graphql.Marshaler) {
+func (e *executableSchema) _{{$object.Name}}_{{$field.Name}}(ctx context.Context, field graphql.CollectedField{{ if not $object.Root }}, obj {{$object.Reference | ref}}{{end}}) (ret {{ if $object.Stream }}func(){{ end }}graphql.Marshaler) {
 	{{- $null := "graphql.Null" }}
 	{{- if $object.Stream }}
 		{{- $null = "nil" }}
 	{{- end }}
 	defer func () {
 		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
+			oc := graphql.GetOperationContext(ctx)
+			oc.Error(ctx, oc.Recover(ctx, r))
 			ret = {{ $null }}
 		}
 	}()
@@ -21,31 +22,34 @@ func (ec *executionContext) _{{$object.Name}}_{{$field.Name}}(ctx context.Contex
 
 	ctx = graphql.WithFieldContext(ctx, fc)
 	{{- if $field.Args }}
-		rawArgs := field.ArgumentMap(ec.Variables)
-		args, err := ec.{{ $field.ArgsFunc }}(ctx,rawArgs)
+		rawArgs := field.ArgumentMap(graphql.GetOperationContext(ctx).Variables)
+		args, err := e.{{ $field.ArgsFunc }}(ctx,rawArgs)
 		if err != nil {
-			ec.Error(ctx, err)
+			oc := graphql.GetOperationContext(ctx)
+			oc.Error(ctx, err)
 			return {{ $null }}
 		}
 		fc.Args = args
 	{{- end }}
 	{{- if  $.AllDirectives.LocationDirectives "FIELD" }}
-		resTmp := ec._fieldMiddleware(ctx, {{if $object.Root}}nil{{else}}obj{{end}}, func(rctx context.Context) (interface{}, error) {
+		resTmp := e._fieldMiddleware(ctx, {{if $object.Root}}nil{{else}}obj{{end}}, func(rctx context.Context) (interface{}, error) {
 			{{ template "field" $field }}
 		})
 	{{ else }}
-		resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		resTmp, err := graphql.GetOperationContext(ctx).ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 			{{ template "field" $field }}
 		})
 		if err != nil {
-			ec.Error(ctx, err)
+			oc := graphql.GetOperationContext(ctx)
+			oc.Error(ctx, err)
 			return {{ $null }}
 		}
 	{{- end }}
 	if resTmp == nil {
 		{{- if $field.TypeReference.GQL.NonNull }}
 			if !graphql.HasFieldError(ctx, fc) {
-				ec.Errorf(ctx, "must not be null")
+				oc := graphql.GetOperationContext(ctx)
+				oc.Errorf(ctx, "must not be null")
 			}
 		{{- end }}
 		return {{ $null }}
@@ -60,14 +64,14 @@ func (ec *executionContext) _{{$object.Name}}_{{$field.Name}}(ctx context.Contex
 				w.Write([]byte{'{'})
 				graphql.MarshalString(field.Alias).MarshalGQL(w)
 				w.Write([]byte{':'})
-				ec.{{ $field.TypeReference.MarshalFunc }}(ctx, field.Selections, res).MarshalGQL(w)
+				e.{{ $field.TypeReference.MarshalFunc }}(ctx, field.Selections, res).MarshalGQL(w)
 				w.Write([]byte{'}'})
 			})
 		}
 	{{- else }}
 		res := resTmp.({{$field.TypeReference.GO | ref}})
 		fc.Result = res
-		return ec.{{ $field.TypeReference.MarshalFunc }}(ctx, field.Selections, res)
+		return e.{{ $field.TypeReference.MarshalFunc }}(ctx, field.Selections, res)
 	{{- end }}
 }
 
@@ -99,7 +103,7 @@ func (ec *executionContext) _{{$object.Name}}_{{$field.Name}}(ctx context.Contex
 
 {{ define "fieldDefinition" }}
 	{{- if .IsResolver -}}
-		return ec.resolvers.{{ .ShortInvocation }}
+		return e.resolvers.{{ .ShortInvocation }}
 	{{- else if .IsMap -}}
 		switch v := {{.GoReceiverName}}[{{.Name|quote}}].(type) {
 		case {{if .Stream}}<-chan {{end}}{{.TypeReference.GO | ref}}:

@@ -87,9 +87,17 @@ func TestNoEntities(t *testing.T) {
 	require.Len(t, f.Entities, 0)
 }
 
-func TestInterfaces(t *testing.T) {
+func TestInterfaceKeyDirective(t *testing.T) {
+	f, cfg := load(t, "testdata/interfaces/key.yml")
+
+	err := f.MutateConfig(cfg)
+	require.NoError(t, err)
+	require.Len(t, f.Entities, 0)
+}
+
+func TestInterfaceExtendsDirective(t *testing.T) {
 	require.Panics(t, func() {
-		load(t, "testdata/interfaces/gqlgen.yml")
+		load(t, "testdata/interfaces/extends.yml")
 	})
 }
 
@@ -108,13 +116,70 @@ func TestCodeGeneration(t *testing.T) {
 	require.NoError(t, f.GenerateCode(data))
 }
 
+func TestCodeGenerationFederation2(t *testing.T) {
+	f, cfg := load(t, "testdata/federation2/federation2.yml")
+	err := f.MutateConfig(cfg)
+
+	require.NoError(t, err)
+
+	data, err := codegen.BuildData(cfg)
+	if err != nil {
+		panic(err)
+	}
+	require.NoError(t, f.GenerateCode(data))
+}
+
+func TestInjectSourceLate(t *testing.T) {
+	_, cfg := load(t, "testdata/allthethings/gqlgen.yml")
+	entityGraphqlGenerated := false
+	for _, source := range cfg.Sources {
+		if source.Name != "federation/entity.graphql" {
+			continue
+		}
+		entityGraphqlGenerated = true
+		require.Contains(t, source.Input, "union _Entity")
+		require.Contains(t, source.Input, "type _Service {")
+		require.Contains(t, source.Input, "extend type Query {")
+		require.Contains(t, source.Input, "_entities(representations: [_Any!]!): [_Entity]!")
+		require.Contains(t, source.Input, "_service: _Service!")
+	}
+	require.True(t, entityGraphqlGenerated)
+
+	_, cfg = load(t, "testdata/entities/nokey.yml")
+	entityGraphqlGenerated = false
+	for _, source := range cfg.Sources {
+		if source.Name != "federation/entity.graphql" {
+			continue
+		}
+		entityGraphqlGenerated = true
+		require.NotContains(t, source.Input, "union _Entity")
+		require.Contains(t, source.Input, "type _Service {")
+		require.Contains(t, source.Input, "extend type Query {")
+		require.NotContains(t, source.Input, "_entities(representations: [_Any!]!): [_Entity]!")
+		require.Contains(t, source.Input, "_service: _Service!")
+	}
+	require.True(t, entityGraphqlGenerated)
+
+	_, cfg = load(t, "testdata/schema/customquerytype.yml")
+	for _, source := range cfg.Sources {
+		if source.Name != "federation/entity.graphql" {
+			continue
+		}
+		require.Contains(t, source.Input, "extend type CustomQuery {")
+	}
+}
+
 func load(t *testing.T, name string) (*federation, *config.Config) {
 	t.Helper()
 
 	cfg, err := config.LoadConfig(name)
 	require.NoError(t, err)
 
-	f := &federation{}
+	if cfg.Federation.Version == 0 {
+		cfg.Federation.Version = 1
+	}
+
+	f := &federation{Version: cfg.Federation.Version}
 	cfg.Sources = append(cfg.Sources, f.InjectSourceEarly())
 	require.NoError(t, cfg.LoadSchema())
 

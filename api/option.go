@@ -15,6 +15,13 @@ func NoPlugins() Option {
 
 func AddPlugin(p plugin.Plugin) Option {
 	return func(cfg *config.Config, plugins *[]plugin.Plugin) {
+		*plugins = append(*plugins, p)
+	}
+}
+
+// PrependPlugin prepends plugin any existing plugins
+func PrependPlugin(p plugin.Plugin) Option {
+	return func(cfg *config.Config, plugins *[]plugin.Plugin) {
 		*plugins = append([]plugin.Plugin{p}, *plugins...)
 	}
 }

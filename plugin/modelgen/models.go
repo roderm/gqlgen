@@ -36,6 +36,7 @@ type ModelBuild struct {
 type Interface struct {
 	Description string
 	Name        string
+	Implements  []string
 }
 
 type Object struct {
@@ -97,6 +98,7 @@ func (m *Plugin) MutateConfig(cfg *config.Config) error {
 			it := &Interface{
 				Description: schemaType.Description,
 				Name:        schemaType.Name,
+				Implements:  schemaType.Interfaces,
 			}
 
 			b.Interfaces = append(b.Interfaces, it)
@@ -108,8 +110,23 @@ func (m *Plugin) MutateConfig(cfg *config.Config) error {
 				Description: schemaType.Description,
 				Name:        schemaType.Name,
 			}
+
+			// If Interface A implements interface B, and Interface C also implements interface B
+			// then both A and C have methods of B.
+			// The reason for checking unique is to prevent the same method B from being generated twice.
+			uniqueMap := map[string]bool{}
 			for _, implementor := range cfg.Schema.GetImplements(schemaType) {
-				it.Implements = append(it.Implements, implementor.Name)
+				if !uniqueMap[implementor.Name] {
+					it.Implements = append(it.Implements, implementor.Name)
+					uniqueMap[implementor.Name] = true
+				}
+				// for interface implements
+				for _, iface := range implementor.Interfaces {
+					if !uniqueMap[iface] {
+						it.Implements = append(it.Implements, iface)
+						uniqueMap[iface] = true
+					}
+				}
 			}
 
 			for _, field := range schemaType.Fields {

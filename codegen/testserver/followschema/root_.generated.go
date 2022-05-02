@@ -36,6 +36,7 @@ type ResolverRoot interface {
 	Mutation() MutationResolver
 	OverlappingFields() OverlappingFieldsResolver
 	Panics() PanicsResolver
+	Pet() PetResolver
 	Primitive() PrimitiveResolver
 	PrimitiveString() PrimitiveStringResolver
 	Query() QueryResolver
@@ -248,6 +249,11 @@ type ComplexityRoot struct {
 		FieldScalarMarshal func(childComplexity int) int
 	}
 
+	Pet struct {
+		Friends func(childComplexity int, limit *int) int
+		ID      func(childComplexity int) int
+	}
+
 	Primitive struct {
 		Squared func(childComplexity int) int
 		Value   func(childComplexity int) int
@@ -335,6 +341,7 @@ type ComplexityRoot struct {
 		VOkCaseValue                     func(childComplexity int) int
 		Valid                            func(childComplexity int) int
 		ValidType                        func(childComplexity int) int
+		VariadicModel                    func(childComplexity int) int
 		WrappedMap                       func(childComplexity int) int
 		WrappedScalar                    func(childComplexity int) int
 		WrappedSlice                     func(childComplexity int) int
@@ -360,6 +367,7 @@ type ComplexityRoot struct {
 		DirectiveDouble        func(childComplexity int) int
 		DirectiveNullableArg   func(childComplexity int, arg *int, arg2 *int, arg3 *string) int
 		DirectiveUnimplemented func(childComplexity int) int
+		ErrorRequired          func(childComplexity int) int
 		InitPayload            func(childComplexity int) int
 		Issue896b              func(childComplexity int) int
 		Updated                func(childComplexity int) int
@@ -369,6 +377,7 @@ type ComplexityRoot struct {
 		Created func(childComplexity int) int
 		Friends func(childComplexity int) int
 		ID      func(childComplexity int) int
+		Pets    func(childComplexity int, limit *int) int
 		Updated func(childComplexity int) int
 	}
 
@@ -385,6 +394,10 @@ type ComplexityRoot struct {
 		DifferentCaseOld   func(childComplexity int) int
 		ValidArgs          func(childComplexity int, breakArg string, defaultArg string, funcArg string, interfaceArg string, selectArg string, caseArg string, deferArg string, goArg string, mapArg string, structArg string, chanArg string, elseArg string, gotoArg string, packageArg string, switchArg string, constArg string, fallthroughArg string, ifArg string, rangeArg string, typeArg string, continueArg string, forArg string, importArg string, returnArg string, varArg string, _ string) int
 		ValidInputKeywords func(childComplexity int, input *ValidInput) int
+	}
+
+	VariadicModel struct {
+		Value func(childComplexity int, rank int) int
 	}
 
 	WrappedMap struct {
@@ -960,6 +973,25 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Panics.FieldScalarMarshal(childComplexity), true
+
+	case "Pet.friends":
+		if e.complexity.Pet.Friends == nil {
+			break
+		}
+
+		args, err := ec.field_Pet_friends_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Pet.Friends(childComplexity, args["limit"].(*int)), true
+
+	case "Pet.id":
+		if e.complexity.Pet.ID == nil {
+			break
+		}
+
+		return e.complexity.Pet.ID(childComplexity), true
 
 	case "Primitive.squared":
 		if e.complexity.Primitive.Squared == nil {
@@ -1553,6 +1585,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.ValidType(childComplexity), true
 
+	case "Query.variadicModel":
+		if e.complexity.Query.VariadicModel == nil {
+			break
+		}
+
+		return e.complexity.Query.VariadicModel(childComplexity), true
+
 	case "Query.wrappedMap":
 		if e.complexity.Query.WrappedMap == nil {
 			break
@@ -1675,6 +1714,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Subscription.DirectiveUnimplemented(childComplexity), true
 
+	case "Subscription.errorRequired":
+		if e.complexity.Subscription.ErrorRequired == nil {
+			break
+		}
+
+		return e.complexity.Subscription.ErrorRequired(childComplexity), true
+
 	case "Subscription.initPayload":
 		if e.complexity.Subscription.InitPayload == nil {
 			break
@@ -1716,6 +1762,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.User.ID(childComplexity), true
+
+	case "User.pets":
+		if e.complexity.User.Pets == nil {
+			break
+		}
+
+		args, err := ec.field_User_pets_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.User.Pets(childComplexity, args["limit"].(*int)), true
 
 	case "User.updated":
 		if e.complexity.User.Updated == nil {
@@ -1775,6 +1833,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.ValidType.ValidInputKeywords(childComplexity, args["input"].(*ValidInput)), true
+
+	case "VariadicModel.value":
+		if e.complexity.VariadicModel.Value == nil {
+			break
+		}
+
+		args, err := ec.field_VariadicModel_value_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.VariadicModel.Value(childComplexity, args["rank"].(int)), true
 
 	case "WrappedMap.get":
 		if e.complexity.WrappedMap.Get == nil {
@@ -1849,6 +1919,21 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	rc := graphql.GetOperationContext(ctx)
 	ec := executionContext{rc, e}
+	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputDefaultInput,
+		ec.unmarshalInputInnerDirectives,
+		ec.unmarshalInputInnerInput,
+		ec.unmarshalInputInputDirectives,
+		ec.unmarshalInputInputWithEnumValue,
+		ec.unmarshalInputNestedInput,
+		ec.unmarshalInputNestedMapInput,
+		ec.unmarshalInputOuterInput,
+		ec.unmarshalInputRecursiveInputSlice,
+		ec.unmarshalInputSpecialInput,
+		ec.unmarshalInputUpdatePtrToPtrInner,
+		ec.unmarshalInputUpdatePtrToPtrOuter,
+		ec.unmarshalInputValidInput,
+	)
 	first := true
 
 	switch rc.Operation.Operation {
@@ -1858,6 +1943,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 				return nil
 			}
 			first = false
+			ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
 			data := ec._Query(ctx, rc.Operation.SelectionSet)
 			var buf bytes.Buffer
 			data.MarshalGQL(&buf)
@@ -1872,6 +1958,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 				return nil
 			}
 			first = false
+			ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
 			data := ec._Mutation(ctx, rc.Operation.SelectionSet)
 			var buf bytes.Buffer
 			data.MarshalGQL(&buf)
@@ -1886,7 +1973,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		var buf bytes.Buffer
 		return func(ctx context.Context) *graphql.Response {
 			buf.Reset()
-			data := next()
+			data := next(ctx)
 
 			if data == nil {
 				return nil
@@ -2190,6 +2277,10 @@ input NestedInput {
     valid: String!
 }
 
+extend type Subscription {
+	errorRequired: Error!
+}
+
 type Errors {
     a: Error!
     b: Error!
@@ -2319,11 +2410,17 @@ type Subscription {
     initPayload: String!
 }
 
+type Pet {
+    id: Int!
+    friends(limit: Int): [Pet!] @goField(forceResolver: true)
+}
+
 type User {
     id: Int!
     friends: [User!]! @goField(forceResolver: true)
     created: Time!
     updated: Time
+    pets(limit: Int): [Pet!] @goField(forceResolver: true)
 }
 
 type Autobind {
@@ -2523,6 +2620,14 @@ type Content_Post {
 }
 
 union Content_Child = Content_User | Content_Post
+`, BuiltIn: false},
+	{Name: "variadic.graphql", Input: `extend type Query {
+    variadicModel: VariadicModel
+}
+
+type VariadicModel {
+    value(rank: Int!): String
+}
 `, BuiltIn: false},
 	{Name: "weird_type_cases.graphql", Input: `# regression test for https://github.com/99designs/gqlgen/issues/583
 

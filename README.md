@@ -35,7 +35,7 @@ Still not convinced enough to use **gqlgen**? Compare **gqlgen** with other Go g
 
 More help to get started:
  - [Getting started tutorial](https://gqlgen.com/getting-started/) - a comprehensive guide to help you get started
- - [Real-world examples](https://github.com/99designs/gqlgen/tree/master/example) show how to create GraphQL applications
+ - [Real-world examples](https://github.com/99designs/gqlgen/tree/master/_examples) show how to create GraphQL applications
  - [Reference docs](https://pkg.go.dev/github.com/99designs/gqlgen) for the APIs
 
 ## Reporting Issues
@@ -130,7 +130,7 @@ Yes! You can by remapping it in config as seen below:
 models:
   ID: # The GraphQL type ID is backed by
     model:
-      - github.com/99designs/gqlgen/graphql.IntID # An go integer
+      - github.com/99designs/gqlgen/graphql.IntID # a go integer
       - github.com/99designs/gqlgen/graphql.ID # or a go string
 ```
 

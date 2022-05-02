@@ -67,7 +67,13 @@ func (ec *executionContext) __resolve_entities(ctx context.Context, representati
 		switch typeName {
 		case "MultiHello":
 			return true
+		case "MultiHelloMultipleRequires":
+			return true
+		case "MultiHelloRequires":
+			return true
 		case "MultiHelloWithError":
+			return true
+		case "MultiPlanetRequiresNested":
 			return true
 		default:
 			return false
@@ -104,6 +110,30 @@ func (ec *executionContext) __resolve_entities(ctx context.Context, representati
 				list[idx[i]] = entity
 				return nil
 			}
+		case "HelloMultiSingleKeys":
+			resolverName, err := entityResolverNameForHelloMultiSingleKeys(ctx, rep)
+			if err != nil {
+				return fmt.Errorf(`finding resolver for Entity "HelloMultiSingleKeys": %w`, err)
+			}
+			switch resolverName {
+
+			case "findHelloMultiSingleKeysByKey1AndKey2":
+				id0, err := ec.unmarshalNString2string(ctx, rep["key1"])
+				if err != nil {
+					return fmt.Errorf(`unmarshalling param 0 for findHelloMultiSingleKeysByKey1AndKey2(): %w`, err)
+				}
+				id1, err := ec.unmarshalNString2string(ctx, rep["key2"])
+				if err != nil {
+					return fmt.Errorf(`unmarshalling param 1 for findHelloMultiSingleKeysByKey1AndKey2(): %w`, err)
+				}
+				entity, err := ec.resolvers.Entity().FindHelloMultiSingleKeysByKey1AndKey2(ctx, id0, id1)
+				if err != nil {
+					return fmt.Errorf(`resolving Entity "HelloMultiSingleKeys": %w`, err)
+				}
+
+				list[idx[i]] = entity
+				return nil
+			}
 		case "HelloWithErrors":
 			resolverName, err := entityResolverNameForHelloWithErrors(ctx, rep)
 			if err != nil {
@@ -121,6 +151,34 @@ func (ec *executionContext) __resolve_entities(ctx context.Context, representati
 					return fmt.Errorf(`resolving Entity "HelloWithErrors": %w`, err)
 				}
 
+				list[idx[i]] = entity
+				return nil
+			}
+		case "PlanetMultipleRequires":
+			resolverName, err := entityResolverNameForPlanetMultipleRequires(ctx, rep)
+			if err != nil {
+				return fmt.Errorf(`finding resolver for Entity "PlanetMultipleRequires": %w`, err)
+			}
+			switch resolverName {
+
+			case "findPlanetMultipleRequiresByName":
+				id0, err := ec.unmarshalNString2string(ctx, rep["name"])
+				if err != nil {
+					return fmt.Errorf(`unmarshalling param 0 for findPlanetMultipleRequiresByName(): %w`, err)
+				}
+				entity, err := ec.resolvers.Entity().FindPlanetMultipleRequiresByName(ctx, id0)
+				if err != nil {
+					return fmt.Errorf(`resolving Entity "PlanetMultipleRequires": %w`, err)
+				}
+
+				entity.Diameter, err = ec.unmarshalNInt2int(ctx, rep["diameter"])
+				if err != nil {
+					return err
+				}
+				entity.Density, err = ec.unmarshalNInt2int(ctx, rep["density"])
+				if err != nil {
+					return err
+				}
 				list[idx[i]] = entity
 				return nil
 			}
@@ -292,6 +350,66 @@ func (ec *executionContext) __resolve_entities(ctx context.Context, representati
 			}
 			return nil
 
+		case "MultiHelloMultipleRequires":
+			_reps := make([]*MultiHelloMultipleRequiresByNamesInput, len(reps))
+
+			for i, rep := range reps {
+				id0, err := ec.unmarshalNString2string(ctx, rep["name"])
+				if err != nil {
+					return errors.New(fmt.Sprintf("Field %s undefined in schema.", "name"))
+				}
+
+				_reps[i] = &MultiHelloMultipleRequiresByNamesInput{
+					Name: id0,
+				}
+			}
+
+			entities, err := ec.resolvers.Entity().FindManyMultiHelloMultipleRequiresByNames(ctx, _reps)
+			if err != nil {
+				return err
+			}
+
+			for i, entity := range entities {
+				entity.Key1, err = ec.unmarshalNString2string(ctx, reps[i]["key1"])
+				if err != nil {
+					return err
+				}
+				entity.Key2, err = ec.unmarshalNString2string(ctx, reps[i]["key2"])
+				if err != nil {
+					return err
+				}
+				list[idx[i]] = entity
+			}
+			return nil
+
+		case "MultiHelloRequires":
+			_reps := make([]*MultiHelloRequiresByNamesInput, len(reps))
+
+			for i, rep := range reps {
+				id0, err := ec.unmarshalNString2string(ctx, rep["name"])
+				if err != nil {
+					return errors.New(fmt.Sprintf("Field %s undefined in schema.", "name"))
+				}
+
+				_reps[i] = &MultiHelloRequiresByNamesInput{
+					Name: id0,
+				}
+			}
+
+			entities, err := ec.resolvers.Entity().FindManyMultiHelloRequiresByNames(ctx, _reps)
+			if err != nil {
+				return err
+			}
+
+			for i, entity := range entities {
+				entity.Key1, err = ec.unmarshalNString2string(ctx, reps[i]["key1"])
+				if err != nil {
+					return err
+				}
+				list[idx[i]] = entity
+			}
+			return nil
+
 		case "MultiHelloWithError":
 			_reps := make([]*MultiHelloWithErrorByNamesInput, len(reps))
 
@@ -312,6 +430,34 @@ func (ec *executionContext) __resolve_entities(ctx context.Context, representati
 			}
 
 			for i, entity := range entities {
+				list[idx[i]] = entity
+			}
+			return nil
+
+		case "MultiPlanetRequiresNested":
+			_reps := make([]*MultiPlanetRequiresNestedByNamesInput, len(reps))
+
+			for i, rep := range reps {
+				id0, err := ec.unmarshalNString2string(ctx, rep["name"])
+				if err != nil {
+					return errors.New(fmt.Sprintf("Field %s undefined in schema.", "name"))
+				}
+
+				_reps[i] = &MultiPlanetRequiresNestedByNamesInput{
+					Name: id0,
+				}
+			}
+
+			entities, err := ec.resolvers.Entity().FindManyMultiPlanetRequiresNestedByNames(ctx, _reps)
+			if err != nil {
+				return err
+			}
+
+			for i, entity := range entities {
+				entity.World.Foo, err = ec.unmarshalNString2string(ctx, reps[i]["world"].(map[string]interface{})["foo"])
+				if err != nil {
+					return err
+				}
 				list[idx[i]] = entity
 			}
 			return nil
@@ -372,9 +518,11 @@ func (ec *executionContext) __resolve_entities(ctx context.Context, representati
 func entityResolverNameForHello(ctx context.Context, rep map[string]interface{}) (string, error) {
 	for {
 		var (
-			m  map[string]interface{}
-			ok bool
+			m   map[string]interface{}
+			val interface{}
+			ok  bool
 		)
+		_ = val
 		m = rep
 		if _, ok = m["name"]; !ok {
 			break
@@ -384,12 +532,35 @@ func entityResolverNameForHello(ctx context.Context, rep map[string]interface{})
 	return "", fmt.Errorf("%w for Hello", ErrTypeNotFound)
 }
 
+func entityResolverNameForHelloMultiSingleKeys(ctx context.Context, rep map[string]interface{}) (string, error) {
+	for {
+		var (
+			m   map[string]interface{}
+			val interface{}
+			ok  bool
+		)
+		_ = val
+		m = rep
+		if _, ok = m["key1"]; !ok {
+			break
+		}
+		m = rep
+		if _, ok = m["key2"]; !ok {
+			break
+		}
+		return "findHelloMultiSingleKeysByKey1AndKey2", nil
+	}
+	return "", fmt.Errorf("%w for HelloMultiSingleKeys", ErrTypeNotFound)
+}
+
 func entityResolverNameForHelloWithErrors(ctx context.Context, rep map[string]interface{}) (string, error) {
 	for {
 		var (
-			m  map[string]interface{}
-			ok bool
+			m   map[string]interface{}
+			val interface{}
+			ok  bool
 		)
+		_ = val
 		m = rep
 		if _, ok = m["name"]; !ok {
 			break
@@ -402,9 +573,11 @@ func entityResolverNameForHelloWithErrors(ctx context.Context, rep map[string]in
 func entityResolverNameForMultiHello(ctx context.Context, rep map[string]interface{}) (string, error) {
 	for {
 		var (
-			m  map[string]interface{}
-			ok bool
+			m   map[string]interface{}
+			val interface{}
+			ok  bool
 		)
+		_ = val
 		m = rep
 		if _, ok = m["name"]; !ok {
 			break
@@ -414,12 +587,48 @@ func entityResolverNameForMultiHello(ctx context.Context, rep map[string]interfa
 	return "", fmt.Errorf("%w for MultiHello", ErrTypeNotFound)
 }
 
+func entityResolverNameForMultiHelloMultipleRequires(ctx context.Context, rep map[string]interface{}) (string, error) {
+	for {
+		var (
+			m   map[string]interface{}
+			val interface{}
+			ok  bool
+		)
+		_ = val
+		m = rep
+		if _, ok = m["name"]; !ok {
+			break
+		}
+		return "findManyMultiHelloMultipleRequiresByNames", nil
+	}
+	return "", fmt.Errorf("%w for MultiHelloMultipleRequires", ErrTypeNotFound)
+}
+
+func entityResolverNameForMultiHelloRequires(ctx context.Context, rep map[string]interface{}) (string, error) {
+	for {
+		var (
+			m   map[string]interface{}
+			val interface{}
+			ok  bool
+		)
+		_ = val
+		m = rep
+		if _, ok = m["name"]; !ok {
+			break
+		}
+		return "findManyMultiHelloRequiresByNames", nil
+	}
+	return "", fmt.Errorf("%w for MultiHelloRequires", ErrTypeNotFound)
+}
+
 func entityResolverNameForMultiHelloWithError(ctx context.Context, rep map[string]interface{}) (string, error) {
 	for {
 		var (
-			m  map[string]interface{}
-			ok bool
+			m   map[string]interface{}
+			val interface{}
+			ok  bool
 		)
+		_ = val
 		m = rep
 		if _, ok = m["name"]; !ok {
 			break
@@ -429,12 +638,48 @@ func entityResolverNameForMultiHelloWithError(ctx context.Context, rep map[strin
 	return "", fmt.Errorf("%w for MultiHelloWithError", ErrTypeNotFound)
 }
 
+func entityResolverNameForMultiPlanetRequiresNested(ctx context.Context, rep map[string]interface{}) (string, error) {
+	for {
+		var (
+			m   map[string]interface{}
+			val interface{}
+			ok  bool
+		)
+		_ = val
+		m = rep
+		if _, ok = m["name"]; !ok {
+			break
+		}
+		return "findManyMultiPlanetRequiresNestedByNames", nil
+	}
+	return "", fmt.Errorf("%w for MultiPlanetRequiresNested", ErrTypeNotFound)
+}
+
+func entityResolverNameForPlanetMultipleRequires(ctx context.Context, rep map[string]interface{}) (string, error) {
+	for {
+		var (
+			m   map[string]interface{}
+			val interface{}
+			ok  bool
+		)
+		_ = val
+		m = rep
+		if _, ok = m["name"]; !ok {
+			break
+		}
+		return "findPlanetMultipleRequiresByName", nil
+	}
+	return "", fmt.Errorf("%w for PlanetMultipleRequires", ErrTypeNotFound)
+}
+
 func entityResolverNameForPlanetRequires(ctx context.Context, rep map[string]interface{}) (string, error) {
 	for {
 		var (
-			m  map[string]interface{}
-			ok bool
+			m   map[string]interface{}
+			val interface{}
+			ok  bool
 		)
+		_ = val
 		m = rep
 		if _, ok = m["name"]; !ok {
 			break
@@ -447,9 +692,11 @@ func entityResolverNameForPlanetRequires(ctx context.Context, rep map[string]int
 func entityResolverNameForPlanetRequiresNested(ctx context.Context, rep map[string]interface{}) (string, error) {
 	for {
 		var (
-			m  map[string]interface{}
-			ok bool
+			m   map[string]interface{}
+			val interface{}
+			ok  bool
 		)
+		_ = val
 		m = rep
 		if _, ok = m["name"]; !ok {
 			break
@@ -466,6 +713,7 @@ func entityResolverNameForWorld(ctx context.Context, rep map[string]interface{})
 			val interface{}
 			ok  bool
 		)
+		_ = val
 		m = rep
 		if val, ok = m["hello"]; !ok {
 			break
@@ -488,9 +736,11 @@ func entityResolverNameForWorld(ctx context.Context, rep map[string]interface{})
 func entityResolverNameForWorldName(ctx context.Context, rep map[string]interface{}) (string, error) {
 	for {
 		var (
-			m  map[string]interface{}
-			ok bool
+			m   map[string]interface{}
+			val interface{}
+			ok  bool
 		)
+		_ = val
 		m = rep
 		if _, ok = m["name"]; !ok {
 			break
@@ -507,6 +757,7 @@ func entityResolverNameForWorldWithMultipleKeys(ctx context.Context, rep map[str
 			val interface{}
 			ok  bool
 		)
+		_ = val
 		m = rep
 		if val, ok = m["hello"]; !ok {
 			break
@@ -525,9 +776,11 @@ func entityResolverNameForWorldWithMultipleKeys(ctx context.Context, rep map[str
 	}
 	for {
 		var (
-			m  map[string]interface{}
-			ok bool
+			m   map[string]interface{}
+			val interface{}
+			ok  bool
 		)
+		_ = val
 		m = rep
 		if _, ok = m["bar"]; !ok {
 			break

@@ -39,6 +39,9 @@ type Stub struct {
 		FieldScalarMarshal func(ctx context.Context, obj *Panics) ([]MarshalPanic, error)
 		ArgUnmarshal       func(ctx context.Context, obj *Panics, u []MarshalPanic) (bool, error)
 	}
+	PetResolver struct {
+		Friends func(ctx context.Context, obj *Pet, limit *int) ([]*Pet, error)
+	}
 	PrimitiveResolver struct {
 		Value func(ctx context.Context, obj *Primitive) (int, error)
 	}
@@ -107,6 +110,7 @@ type Stub struct {
 		VOkCaseValue                     func(ctx context.Context) (*VOkCaseValue, error)
 		VOkCaseNil                       func(ctx context.Context) (*VOkCaseNil, error)
 		ValidType                        func(ctx context.Context) (*ValidType, error)
+		VariadicModel                    func(ctx context.Context) (*VariadicModel, error)
 		WrappedStruct                    func(ctx context.Context) (*WrappedStruct, error)
 		WrappedScalar                    func(ctx context.Context) (otherpkg.Scalar, error)
 		WrappedMap                       func(ctx context.Context) (WrappedMap, error)
@@ -120,9 +124,11 @@ type Stub struct {
 		DirectiveDouble        func(ctx context.Context) (<-chan *string, error)
 		DirectiveUnimplemented func(ctx context.Context) (<-chan *string, error)
 		Issue896b              func(ctx context.Context) (<-chan []*CheckIssue896, error)
+		ErrorRequired          func(ctx context.Context) (<-chan *Error, error)
 	}
 	UserResolver struct {
 		Friends func(ctx context.Context, obj *User) ([]*User, error)
+		Pets    func(ctx context.Context, obj *User, limit *int) ([]*Pet, error)
 	}
 	WrappedMapResolver struct {
 		Get func(ctx context.Context, obj WrappedMap, key string) (string, error)
@@ -152,6 +158,9 @@ func (r *Stub) OverlappingFields() OverlappingFieldsResolver {
 }
 func (r *Stub) Panics() PanicsResolver {
 	return &stubPanics{r}
+}
+func (r *Stub) Pet() PetResolver {
+	return &stubPet{r}
 }
 func (r *Stub) Primitive() PrimitiveResolver {
 	return &stubPrimitive{r}
@@ -236,6 +245,12 @@ func (r *stubPanics) FieldScalarMarshal(ctx context.Context, obj *Panics) ([]Mar
 }
 func (r *stubPanics) ArgUnmarshal(ctx context.Context, obj *Panics, u []MarshalPanic) (bool, error) {
 	return r.PanicsResolver.ArgUnmarshal(ctx, obj, u)
+}
+
+type stubPet struct{ *Stub }
+
+func (r *stubPet) Friends(ctx context.Context, obj *Pet, limit *int) ([]*Pet, error) {
+	return r.PetResolver.Friends(ctx, obj, limit)
 }
 
 type stubPrimitive struct{ *Stub }
@@ -435,6 +450,9 @@ func (r *stubQuery) VOkCaseNil(ctx context.Context) (*VOkCaseNil, error) {
 func (r *stubQuery) ValidType(ctx context.Context) (*ValidType, error) {
 	return r.QueryResolver.ValidType(ctx)
 }
+func (r *stubQuery) VariadicModel(ctx context.Context) (*VariadicModel, error) {
+	return r.QueryResolver.VariadicModel(ctx)
+}
 func (r *stubQuery) WrappedStruct(ctx context.Context) (*WrappedStruct, error) {
 	return r.QueryResolver.WrappedStruct(ctx)
 }
@@ -471,11 +489,17 @@ func (r *stubSubscription) DirectiveUnimplemented(ctx context.Context) (<-chan *
 func (r *stubSubscription) Issue896b(ctx context.Context) (<-chan []*CheckIssue896, error) {
 	return r.SubscriptionResolver.Issue896b(ctx)
 }
+func (r *stubSubscription) ErrorRequired(ctx context.Context) (<-chan *Error, error) {
+	return r.SubscriptionResolver.ErrorRequired(ctx)
+}
 
 type stubUser struct{ *Stub }
 
 func (r *stubUser) Friends(ctx context.Context, obj *User) ([]*User, error) {
 	return r.UserResolver.Friends(ctx, obj)
+}
+func (r *stubUser) Pets(ctx context.Context, obj *User, limit *int) ([]*Pet, error) {
+	return r.UserResolver.Pets(ctx, obj, limit)
 }
 
 type stubWrappedMap struct{ *Stub }

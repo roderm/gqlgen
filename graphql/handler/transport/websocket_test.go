@@ -137,6 +137,19 @@ func TestWebsocket(t *testing.T) {
 		msg = readOp(c)
 		require.Equal(t, completeMsg, msg.Type)
 		require.Equal(t, "test_1", msg.ID)
+
+		// At this point we should be done and should not receive another message.
+		c.SetReadDeadline(time.Now().UTC().Add(1 * time.Millisecond))
+
+		err := c.ReadJSON(&msg)
+		if err == nil {
+			// This should not send a second close message for the same id.
+			require.NotEqual(t, completeMsg, msg.Type)
+			require.NotEqual(t, "test_1", msg.ID)
+		} else {
+			assert.Contains(t, err.Error(), "timeout")
+		}
+
 	})
 }
 
@@ -293,23 +306,167 @@ func TestWebsocketInitFunc(t *testing.T) {
 	})
 }
 
-func TestWebsocketGraphqltransportwsSubprotocol(t *testing.T) {
-	handler := testserver.New()
-	handler.AddTransport(transport.Websocket{})
+func TestWebSocketInitTimeout(t *testing.T) {
+	t.Run("times out if no init message is received within the configured duration", func(t *testing.T) {
+		h := testserver.New()
+		h.AddTransport(transport.Websocket{
+			InitTimeout: 5 * time.Millisecond,
+		})
+		srv := httptest.NewServer(h)
+		defer srv.Close()
 
-	srv := httptest.NewServer(handler)
-	defer srv.Close()
+		c := wsConnect(srv.URL)
+		defer c.Close()
+
+		var msg operationMessage
+		err := c.ReadJSON(&msg)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "timeout")
+	})
+
+	t.Run("keeps waiting for an init message if no time out is configured", func(t *testing.T) {
+		h := testserver.New()
+		h.AddTransport(transport.Websocket{})
+		srv := httptest.NewServer(h)
+		defer srv.Close()
+
+		c := wsConnect(srv.URL)
+		defer c.Close()
+
+		done := make(chan interface{}, 1)
+		go func() {
+			var msg operationMessage
+			_ = c.ReadJSON(&msg)
+			done <- 1
+		}()
+
+		select {
+		case <-done:
+			assert.Fail(t, "web socket read operation finished while it shouldn't have")
+		case <-time.After(100 * time.Millisecond):
+			// Success! I guess? Can't really wait forever to see if the read waits forever...
+		}
+	})
+}
+
+func TestWebSocketErrorFunc(t *testing.T) {
+	t.Run("the error handler gets called when an error occurs", func(t *testing.T) {
+		errFuncCalled := make(chan bool, 1)
+		h := testserver.New()
+		h.AddTransport(transport.Websocket{
+			ErrorFunc: func(_ context.Context, err error) {
+				require.Error(t, err)
+				assert.Equal(t, err.Error(), "invalid message received")
+				errFuncCalled <- true
+			},
+		})
+
+		srv := httptest.NewServer(h)
+		defer srv.Close()
+
+		c := wsConnect(srv.URL)
+		require.NoError(t, c.WriteJSON(&operationMessage{Type: connectionInitMsg}))
+		assert.Equal(t, connectionAckMsg, readOp(c).Type)
+		assert.Equal(t, connectionKeepAliveMsg, readOp(c).Type)
+		require.NoError(t, c.WriteMessage(websocket.TextMessage, []byte("mark my words, you will regret this")))
+
+		select {
+		case res := <-errFuncCalled:
+			assert.True(t, res)
+		case <-time.NewTimer(time.Millisecond * 20).C:
+			assert.Fail(t, "The fail handler was not called in time")
+		}
+	})
+
+	t.Run("init func errors do not call the error handler", func(t *testing.T) {
+		h := testserver.New()
+		h.AddTransport(transport.Websocket{
+			InitFunc: func(ctx context.Context, _ transport.InitPayload) (context.Context, error) {
+				return ctx, errors.New("this is not what we agreed upon")
+			},
+			ErrorFunc: func(_ context.Context, err error) {
+				assert.Fail(t, "the error handler got called when it shouldn't have", "error: "+err.Error())
+			},
+		})
+		srv := httptest.NewServer(h)
+		defer srv.Close()
+
+		c := wsConnect(srv.URL)
+		require.NoError(t, c.WriteJSON(&operationMessage{Type: connectionInitMsg}))
+		time.Sleep(time.Millisecond * 20)
+	})
+
+	t.Run("init func context closes do not call the error handler", func(t *testing.T) {
+		h := testserver.New()
+		h.AddTransport(transport.Websocket{
+			InitFunc: func(ctx context.Context, _ transport.InitPayload) (context.Context, error) {
+				newCtx, cancel := context.WithCancel(ctx)
+				time.AfterFunc(time.Millisecond*5, cancel)
+				return newCtx, nil
+			},
+			ErrorFunc: func(_ context.Context, err error) {
+				assert.Fail(t, "the error handler got called when it shouldn't have", "error: "+err.Error())
+			},
+		})
+		srv := httptest.NewServer(h)
+		defer srv.Close()
+
+		c := wsConnect(srv.URL)
+		require.NoError(t, c.WriteJSON(&operationMessage{Type: connectionInitMsg}))
+		assert.Equal(t, connectionAckMsg, readOp(c).Type)
+		assert.Equal(t, connectionKeepAliveMsg, readOp(c).Type)
+		time.Sleep(time.Millisecond * 20)
+	})
+
+	t.Run("init func context deadlines do not call the error handler", func(t *testing.T) {
+		h := testserver.New()
+		var cancel func()
+		h.AddTransport(transport.Websocket{
+			InitFunc: func(ctx context.Context, _ transport.InitPayload) (newCtx context.Context, _ error) {
+				newCtx, cancel = context.WithDeadline(ctx, time.Now().Add(time.Millisecond*5))
+				return newCtx, nil
+			},
+			ErrorFunc: func(_ context.Context, err error) {
+				assert.Fail(t, "the error handler got called when it shouldn't have", "error: "+err.Error())
+			},
+		})
+		srv := httptest.NewServer(h)
+		defer srv.Close()
+
+		c := wsConnect(srv.URL)
+		require.NoError(t, c.WriteJSON(&operationMessage{Type: connectionInitMsg}))
+		assert.Equal(t, connectionAckMsg, readOp(c).Type)
+		assert.Equal(t, connectionKeepAliveMsg, readOp(c).Type)
+
+		// Cancel should contain an actual value now, so let's call it when we exit this scope (to make the linter happy)
+		defer cancel()
+
+		time.Sleep(time.Millisecond * 20)
+	})
+}
+
+func TestWebsocketGraphqltransportwsSubprotocol(t *testing.T) {
+	initialize := func(ws transport.Websocket) (*testserver.TestServer, *httptest.Server) {
+		h := testserver.New()
+		h.AddTransport(ws)
+		return h, httptest.NewServer(h)
+	}
 
 	t.Run("server acks init", func(t *testing.T) {
+		_, srv := initialize(transport.Websocket{})
+		defer srv.Close()
+
 		c := wsConnectWithSubprocotol(srv.URL, graphqltransportwsSubprotocol)
 		defer c.Close()
 
 		require.NoError(t, c.WriteJSON(&operationMessage{Type: graphqltransportwsConnectionInitMsg}))
-
 		assert.Equal(t, graphqltransportwsConnectionAckMsg, readOp(c).Type)
 	})
 
 	t.Run("client can receive data", func(t *testing.T) {
+		handler, srv := initialize(transport.Websocket{})
+		defer srv.Close()
+
 		c := wsConnectWithSubprocotol(srv.URL, graphqltransportwsSubprotocol)
 		defer c.Close()
 
@@ -340,18 +497,37 @@ func TestWebsocketGraphqltransportwsSubprotocol(t *testing.T) {
 		require.Equal(t, graphqltransportwsCompleteMsg, msg.Type)
 		require.Equal(t, "test_1", msg.ID)
 	})
+
+	t.Run("receives no graphql-ws keep alive messages", func(t *testing.T) {
+		_, srv := initialize(transport.Websocket{KeepAlivePingInterval: 5 * time.Millisecond})
+		defer srv.Close()
+
+		c := wsConnectWithSubprocotol(srv.URL, graphqltransportwsSubprotocol)
+		defer c.Close()
+
+		require.NoError(t, c.WriteJSON(&operationMessage{Type: graphqltransportwsConnectionInitMsg}))
+		assert.Equal(t, graphqltransportwsConnectionAckMsg, readOp(c).Type)
+
+		// If the keep-alives are sent, this deadline will not be used, and no timeout error will be found
+		c.SetReadDeadline(time.Now().UTC().Add(50 * time.Millisecond))
+		var msg operationMessage
+		err := c.ReadJSON(&msg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "timeout")
+	})
 }
 
 func TestWebsocketWithPingPongInterval(t *testing.T) {
-	handler := testserver.New()
-	handler.AddTransport(transport.Websocket{
-		PingPongInterval: time.Second * 1,
-	})
-
-	srv := httptest.NewServer(handler)
-	defer srv.Close()
+	initialize := func(ws transport.Websocket) (*testserver.TestServer, *httptest.Server) {
+		h := testserver.New()
+		h.AddTransport(ws)
+		return h, httptest.NewServer(h)
+	}
 
 	t.Run("client receives ping and responds with pong", func(t *testing.T) {
+		_, srv := initialize(transport.Websocket{PingPongInterval: 10 * time.Millisecond})
+		defer srv.Close()
+
 		c := wsConnectWithSubprocotol(srv.URL, graphqltransportwsSubprotocol)
 		defer c.Close()
 
@@ -364,6 +540,9 @@ func TestWebsocketWithPingPongInterval(t *testing.T) {
 	})
 
 	t.Run("client sends ping and expects pong", func(t *testing.T) {
+		_, srv := initialize(transport.Websocket{PingPongInterval: 10 * time.Millisecond})
+		defer srv.Close()
+
 		c := wsConnectWithSubprocotol(srv.URL, graphqltransportwsSubprotocol)
 		defer c.Close()
 
@@ -372,6 +551,33 @@ func TestWebsocketWithPingPongInterval(t *testing.T) {
 
 		require.NoError(t, c.WriteJSON(&operationMessage{Type: graphqltransportwsPingMsg}))
 		assert.Equal(t, graphqltransportwsPongMsg, readOp(c).Type)
+	})
+
+	t.Run("ping-pongs are not sent when the graphql-ws sub protocol is used", func(t *testing.T) {
+		// Regression test
+		// ---
+		// Before the refactor, the code would try to convert a ping message to a graphql-ws message type
+		// But since this message type does not exist in the graphql-ws sub protocol, it would fail
+
+		_, srv := initialize(transport.Websocket{
+			PingPongInterval:      5 * time.Millisecond,
+			KeepAlivePingInterval: 10 * time.Millisecond,
+		})
+		defer srv.Close()
+
+		// Create connection
+		c := wsConnect(srv.URL)
+		defer c.Close()
+
+		// Initialize connection
+		require.NoError(t, c.WriteJSON(&operationMessage{Type: connectionInitMsg}))
+		assert.Equal(t, connectionAckMsg, readOp(c).Type)
+		assert.Equal(t, connectionKeepAliveMsg, readOp(c).Type)
+
+		// Wait for a few more keep alives to be sure nothing goes wrong
+		assert.Equal(t, connectionKeepAliveMsg, readOp(c).Type)
+		assert.Equal(t, connectionKeepAliveMsg, readOp(c).Type)
+		assert.Equal(t, connectionKeepAliveMsg, readOp(c).Type)
 	})
 }
 

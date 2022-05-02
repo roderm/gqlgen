@@ -4,6 +4,7 @@ package followschema
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	"github.com/99designs/gqlgen/graphql"
@@ -25,21 +26,17 @@ import (
 // region    **************************** field.gotpl *****************************
 
 func (ec *executionContext) _LoopA_b(ctx context.Context, field graphql.CollectedField, obj *LoopA) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_LoopA_b(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
 			ret = graphql.Null
 		}
 	}()
-	fc := &graphql.FieldContext{
-		Object:     "LoopA",
-		Field:      field,
-		Args:       nil,
-		IsMethod:   false,
-		IsResolver: false,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp := ec._fieldMiddleware(ctx, obj, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
 		return obj.B, nil
@@ -56,22 +53,35 @@ func (ec *executionContext) _LoopA_b(ctx context.Context, field graphql.Collecte
 	return ec.marshalNLoopB2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋcodegenᚋtestserverᚋfollowschemaᚐLoopB(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) fieldContext_LoopA_b(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LoopA",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "a":
+				return ec.fieldContext_LoopB_a(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type LoopB", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _LoopB_a(ctx context.Context, field graphql.CollectedField, obj *LoopB) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_LoopB_a(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
 			ret = graphql.Null
 		}
 	}()
-	fc := &graphql.FieldContext{
-		Object:     "LoopB",
-		Field:      field,
-		Args:       nil,
-		IsMethod:   false,
-		IsResolver: false,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp := ec._fieldMiddleware(ctx, obj, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
 		return obj.A, nil
@@ -86,6 +96,23 @@ func (ec *executionContext) _LoopB_a(ctx context.Context, field graphql.Collecte
 	res := resTmp.(*LoopA)
 	fc.Result = res
 	return ec.marshalNLoopA2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋcodegenᚋtestserverᚋfollowschemaᚐLoopA(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_LoopB_a(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LoopB",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "b":
+				return ec.fieldContext_LoopA_b(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type LoopA", field.Name)
+		},
+	}
+	return fc, nil
 }
 
 // endregion **************************** field.gotpl *****************************
@@ -111,11 +138,8 @@ func (ec *executionContext) _LoopA(ctx context.Context, sel ast.SelectionSet, ob
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("LoopA")
 		case "b":
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._LoopA_b(ctx, field, obj)
-			}
 
-			out.Values[i] = innerFunc(ctx)
+			out.Values[i] = ec._LoopA_b(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++
@@ -142,11 +166,8 @@ func (ec *executionContext) _LoopB(ctx context.Context, sel ast.SelectionSet, ob
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("LoopB")
 		case "a":
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._LoopB_a(ctx, field, obj)
-			}
 
-			out.Values[i] = innerFunc(ctx)
+			out.Values[i] = ec._LoopB_a(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++
@@ -169,7 +190,7 @@ func (ec *executionContext) _LoopB(ctx context.Context, sel ast.SelectionSet, ob
 func (ec *executionContext) marshalNLoopA2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋcodegenᚋtestserverᚋfollowschemaᚐLoopA(ctx context.Context, sel ast.SelectionSet, v *LoopA) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			ec.Errorf(ctx, "must not be null")
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
 		}
 		return graphql.Null
 	}
@@ -179,7 +200,7 @@ func (ec *executionContext) marshalNLoopA2ᚖgithubᚗcomᚋ99designsᚋgqlgen�
 func (ec *executionContext) marshalNLoopB2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋcodegenᚋtestserverᚋfollowschemaᚐLoopB(ctx context.Context, sel ast.SelectionSet, v *LoopB) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			ec.Errorf(ctx, "must not be null")
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
 		}
 		return graphql.Null
 	}

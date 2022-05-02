@@ -42,10 +42,12 @@ To automatically add the dependency to your `go.mod` run
 go mod tidy
 ```
 
-If you want to specify a particular version of gqlgen, you can use `go get`. For example
+By default you'll be using the latest version of gqlgen, but if you want to specify a particular version you can use `go get` (replacing `VERSION` with the particular version desired)
 ```shell
-go get -d github.com/99designs/gqlgen@v0.14.0
+go get -d github.com/99designs/gqlgen@VERSION
 ```
+
+
 
 ## Building the server
 
@@ -191,7 +193,17 @@ This example is great, but in the real world fetching most objects is expensive.
 todo unless the user actually asked for it. So lets replace the generated `Todo` model with something slightly more
 realistic.
 
-Create a new file called `graph/model/todo.go`
+First let's enable `autobind`, allowing gqlgen to use your custom models if it can find them rather than generating them. We do this by uncommenting the `autobind` config line in `gqlgen.yml`:
+
+```yml
+# gqlgen will search for any type names in the schema in these go packages
+# if they match it will use them, otherwise it will generate them.
+autobind:
+ - "github.com/[username]/gqlgen-todos/graph/model"
+```
+
+Next, create a new file called `graph/model/todo.go`
+
 ```go
 package model
 
@@ -199,15 +211,14 @@ type Todo struct {
 	ID     string `json:"id"`
 	Text   string `json:"text"`
 	Done   bool   `json:"done"`
-	UserID string `json:"user"`
+	User   *User  `json:"user"`
 }
 ```
 
-> Note
->
-> By default gqlgen will use any models in the model directory that match on name, this can be configured in `gqlgen.yml`.
-
 And run `go run github.com/99designs/gqlgen generate`.
+
+>
+> If you run into this error `package github.com/99designs/gqlgen: no Go files` while executing the `generate` command above, follow the instructions in [this](https://github.com/99designs/gqlgen/issues/800#issuecomment-888908950) comment for a possible solution.
 
 Now if we look in `graph/schema.resolvers.go` we can see a new resolver, lets implement it and fix `CreateTodo`.
 ```go
@@ -215,7 +226,7 @@ func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) 
 	todo := &model.Todo{
 		Text:   input.Text,
 		ID:     fmt.Sprintf("T%d", rand.Int()),
-		UserID: input.UserID, // fix this line
+		User:   &model.User{ID: input.UserID, Name: "user " + input.UserID},
 	}
 	r.todos = append(r.todos, todo)
 	return todo, nil

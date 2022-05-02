@@ -4,6 +4,7 @@ package followschema
 
 import (
 	"context"
+	"errors"
 	"strconv"
 
 	"github.com/99designs/gqlgen/graphql"
@@ -25,21 +26,17 @@ import (
 // region    **************************** field.gotpl *****************************
 
 func (ec *executionContext) _PtrToSliceContainer_ptrToSlice(ctx context.Context, field graphql.CollectedField, obj *PtrToSliceContainer) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PtrToSliceContainer_ptrToSlice(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
 			ret = graphql.Null
 		}
 	}()
-	fc := &graphql.FieldContext{
-		Object:     "PtrToSliceContainer",
-		Field:      field,
-		Args:       nil,
-		IsMethod:   false,
-		IsResolver: false,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp := ec._fieldMiddleware(ctx, obj, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
 		return obj.PtrToSlice, nil
@@ -51,6 +48,19 @@ func (ec *executionContext) _PtrToSliceContainer_ptrToSlice(ctx context.Context,
 	res := resTmp.(*[]string)
 	fc.Result = res
 	return ec.marshalOString2ᚖᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PtrToSliceContainer_ptrToSlice(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PtrToSliceContainer",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
 }
 
 // endregion **************************** field.gotpl *****************************
@@ -76,11 +86,8 @@ func (ec *executionContext) _PtrToSliceContainer(ctx context.Context, sel ast.Se
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("PtrToSliceContainer")
 		case "ptrToSlice":
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._PtrToSliceContainer_ptrToSlice(ctx, field, obj)
-			}
 
-			out.Values[i] = innerFunc(ctx)
+			out.Values[i] = ec._PtrToSliceContainer_ptrToSlice(ctx, field, obj)
 
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -104,7 +111,7 @@ func (ec *executionContext) marshalNPtrToSliceContainer2githubᚗcomᚋ99designs
 func (ec *executionContext) marshalNPtrToSliceContainer2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋcodegenᚋtestserverᚋfollowschemaᚐPtrToSliceContainer(ctx context.Context, sel ast.SelectionSet, v *PtrToSliceContainer) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			ec.Errorf(ctx, "must not be null")
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
 		}
 		return graphql.Null
 	}

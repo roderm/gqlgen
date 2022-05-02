@@ -68,6 +68,10 @@ func (r *panicsResolver) ArgUnmarshal(ctx context.Context, obj *Panics, u []Mars
 	panic("not implemented")
 }
 
+func (r *petResolver) Friends(ctx context.Context, obj *Pet, limit *int) ([]*Pet, error) {
+	panic("not implemented")
+}
+
 func (r *primitiveResolver) Value(ctx context.Context, obj *Primitive) (int, error) {
 	panic("not implemented")
 }
@@ -320,6 +324,10 @@ func (r *queryResolver) ValidType(ctx context.Context) (*ValidType, error) {
 	panic("not implemented")
 }
 
+func (r *queryResolver) VariadicModel(ctx context.Context) (*VariadicModel, error) {
+	panic("not implemented")
+}
+
 func (r *queryResolver) WrappedStruct(ctx context.Context) (*WrappedStruct, error) {
 	panic("not implemented")
 }
@@ -364,7 +372,15 @@ func (r *subscriptionResolver) Issue896b(ctx context.Context) (<-chan []*CheckIs
 	panic("not implemented")
 }
 
+func (r *subscriptionResolver) ErrorRequired(ctx context.Context) (<-chan *Error, error) {
+	panic("not implemented")
+}
+
 func (r *userResolver) Friends(ctx context.Context, obj *User) ([]*User, error) {
+	panic("not implemented")
+}
+
+func (r *userResolver) Pets(ctx context.Context, obj *User, limit *int) ([]*Pet, error) {
 	panic("not implemented")
 }
 
@@ -401,6 +417,9 @@ func (r *Resolver) OverlappingFields() OverlappingFieldsResolver {
 // Panics returns PanicsResolver implementation.
 func (r *Resolver) Panics() PanicsResolver { return &panicsResolver{r} }
 
+// Pet returns PetResolver implementation.
+func (r *Resolver) Pet() PetResolver { return &petResolver{r} }
+
 // Primitive returns PrimitiveResolver implementation.
 func (r *Resolver) Primitive() PrimitiveResolver { return &primitiveResolver{r} }
 
@@ -429,6 +448,7 @@ type modelMethodsResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }
 type overlappingFieldsResolver struct{ *Resolver }
 type panicsResolver struct{ *Resolver }
+type petResolver struct{ *Resolver }
 type primitiveResolver struct{ *Resolver }
 type primitiveStringResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }

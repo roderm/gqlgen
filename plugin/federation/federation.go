@@ -16,12 +16,17 @@ import (
 
 type federation struct {
 	Entities []*Entity
+	Version  int
 }
 
 // New returns a federation plugin that injects
 // federated directives and types into the schema
-func New() plugin.Plugin {
-	return &federation{}
+func New(version int) plugin.Plugin {
+	if version == 0 {
+		version = 1
+	}
+
+	return &federation{Version: version}
 }
 
 // Name returns the plugin name
@@ -51,6 +56,7 @@ func (f *federation) MutateConfig(cfg *config.Config) error {
 			Model: config.StringList{"github.com/99designs/gqlgen/graphql.Map"},
 		},
 	}
+
 	for typeName, entry := range builtins {
 		if cfg.Models.Exists(typeName) {
 			return fmt.Errorf("%v already exists which must be reserved when Federation is enabled", typeName)
@@ -63,22 +69,46 @@ func (f *federation) MutateConfig(cfg *config.Config) error {
 	cfg.Directives["key"] = config.DirectiveConfig{SkipRuntime: true}
 	cfg.Directives["extends"] = config.DirectiveConfig{SkipRuntime: true}
 
+	// Federation 2 specific directives
+	if f.Version == 2 {
+		cfg.Directives["shareable"] = config.DirectiveConfig{SkipRuntime: true}
+		cfg.Directives["link"] = config.DirectiveConfig{SkipRuntime: true}
+		cfg.Directives["tag"] = config.DirectiveConfig{SkipRuntime: true}
+		cfg.Directives["override"] = config.DirectiveConfig{SkipRuntime: true}
+		cfg.Directives["inaccessible"] = config.DirectiveConfig{SkipRuntime: true}
+	}
+
 	return nil
 }
 
 func (f *federation) InjectSourceEarly() *ast.Source {
+	input := `
+	scalar _Any
+	scalar _FieldSet
+	
+	directive @external on FIELD_DEFINITION
+	directive @requires(fields: _FieldSet!) on FIELD_DEFINITION
+	directive @provides(fields: _FieldSet!) on FIELD_DEFINITION
+	directive @extends on OBJECT | INTERFACE
+`
+	// add version-specific changes on key directive, as well as adding the new directives for federation 2
+	if f.Version == 1 {
+		input += `
+	directive @key(fields: _FieldSet!) repeatable on OBJECT | INTERFACE
+`
+	} else if f.Version == 2 {
+		input += `
+	directive @key(fields: _FieldSet!, resolvable: Boolean) repeatable on OBJECT | INTERFACE
+	directive @link(import: [String!], url: String!) repeatable on SCHEMA
+	directive @shareable on OBJECT | FIELD_DEFINITION
+	directive @tag repeatable on OBJECT | FIELD_DEFINITION | INTERFACE | UNION
+	directive @override(from: String!) on FIELD_DEFINITION
+	directive @inaccessible on SCALAR | OBJECT | FIELD_DEFINITION | ARGUMENT_DEFINITION | INTERFACE | UNION | ENUM | ENUM_VALUE | INPUT_OBJECT | INPUT_FIELD_DEFINITION
+`
+	}
 	return &ast.Source{
-		Name: "federation/directives.graphql",
-		Input: `
-scalar _Any
-scalar _FieldSet
-
-directive @external on FIELD_DEFINITION
-directive @requires(fields: _FieldSet!) on FIELD_DEFINITION
-directive @provides(fields: _FieldSet!) on FIELD_DEFINITION
-directive @key(fields: _FieldSet!) repeatable on OBJECT | INTERFACE
-directive @extends on OBJECT | INTERFACE
-`,
+		Name:    "federation/directives.graphql",
+		Input:   input,
 		BuiltIn: true,
 	}
 }
@@ -88,9 +118,7 @@ directive @extends on OBJECT | INTERFACE
 func (f *federation) InjectSourceLate(schema *ast.Schema) *ast.Source {
 	f.setEntities(schema)
 
-	entities := ""
-	resolvers := ""
-	entityResolverInputDefinitions := ""
+	var entities, resolvers, entityResolverInputDefinitions string
 	for i, e := range f.Entities {
 		if i != 0 {
 			entities += " | "
@@ -99,11 +127,14 @@ func (f *federation) InjectSourceLate(schema *ast.Schema) *ast.Source {
 
 		for _, r := range e.Resolvers {
 			if e.Multi {
+				if entityResolverInputDefinitions != "" {
+					entityResolverInputDefinitions += "\n\n"
+				}
 				entityResolverInputDefinitions += "input " + r.InputType + " {\n"
 				for _, keyField := range r.KeyFields {
 					entityResolverInputDefinitions += fmt.Sprintf("\t%s: %s\n", keyField.Field.ToGo(), keyField.Definition.Type.String())
 				}
-				entityResolverInputDefinitions += "}\n"
+				entityResolverInputDefinitions += "}"
 				resolvers += fmt.Sprintf("\t%s(reps: [%s!]!): [%s]\n", r.ResolverName, r.InputType, e.Name)
 			} else {
 				resolverArgs := ""
@@ -115,39 +146,51 @@ func (f *federation) InjectSourceLate(schema *ast.Schema) *ast.Source {
 		}
 	}
 
-	if len(f.Entities) == 0 {
-		// It's unusual for a service not to have any entities, but
-		// possible if it only exports top-level queries and mutations.
-		return nil
+	var blocks []string
+	if entities != "" {
+		entities = `# a union of all types that use the @key directive
+union _Entity = ` + entities
+		blocks = append(blocks, entities)
 	}
 
 	// resolvers can be empty if a service defines only "empty
 	// extend" types.  This should be rare.
 	if resolvers != "" {
-		resolvers = entityResolverInputDefinitions + `
-# fake type to build resolver interfaces for users to implement
+		if entityResolverInputDefinitions != "" {
+			blocks = append(blocks, entityResolverInputDefinitions)
+		}
+		resolvers = `# fake type to build resolver interfaces for users to implement
 type Entity {
 	` + resolvers + `
-}
+}`
+		blocks = append(blocks, resolvers)
+	}
+
+	_serviceTypeDef := `type _Service {
+  sdl: String
+}`
+	blocks = append(blocks, _serviceTypeDef)
+
+	var additionalQueryFields string
+	// Quote from the Apollo Federation subgraph specification:
+	// If no types are annotated with the key directive, then the
+	// _Entity union and _entities field should be removed from the schema
+	if len(f.Entities) > 0 {
+		additionalQueryFields += `  _entities(representations: [_Any!]!): [_Entity]!
 `
 	}
+	// _service field is required in any case
+	additionalQueryFields += `  _service: _Service!`
+
+	extendTypeQueryDef := `extend type ` + schema.Query.Name + ` {
+` + additionalQueryFields + `
+}`
+	blocks = append(blocks, extendTypeQueryDef)
 
 	return &ast.Source{
 		Name:    "federation/entity.graphql",
 		BuiltIn: true,
-		Input: `
-# a union of all types that use the @key directive
-union _Entity = ` + entities + `
-` + resolvers + `
-type _Service {
-  sdl: String
-}
-
-extend type Query {
-  _entities(representations: [_Any!]!): [_Entity]!
-  _service: _Service!
-}
-`,
+		Input:   "\n" + strings.Join(blocks, "\n\n") + "\n",
 	}
 }
 
@@ -277,10 +320,21 @@ func (f *federation) setEntities(schema *ast.Schema) {
 		//    }
 		if !e.allFieldsAreExternal() {
 			for _, dir := range keys {
-				if len(dir.Arguments) != 1 || dir.Arguments[0].Name != "fields" {
-					panic("Exactly one `fields` argument needed for @key declaration.")
+				if len(dir.Arguments) > 2 {
+					panic("More than two arguments provided for @key declaration.")
 				}
-				arg := dir.Arguments[0]
+				var arg *ast.Argument
+
+				// since keys are able to now have multiple arguments, we need to check both possible for a possible @key(fields="" fields="")
+				for _, a := range dir.Arguments {
+					if a.Name == "fields" {
+						if arg != nil {
+							panic("More than one `fields` provided for @key declaration.")
+						}
+						arg = a
+					}
+				}
+
 				keyFieldSet := fieldset.New(arg.Value.Raw, nil)
 
 				keyFields := make([]*KeyField, len(keyFieldSet))
@@ -349,10 +403,14 @@ func isFederatedEntity(schemaType *ast.Definition) ([]*ast.Directive, bool) {
 	case ast.Interface:
 		// TODO: support @key and @extends for interfaces
 		if dir := schemaType.Directives.ForName("key"); dir != nil {
-			panic("@key directive is not currently supported for interfaces.")
+			fmt.Printf("@key directive found on \"interface %s\". Will be ignored.\n", schemaType.Name)
 		}
 		if dir := schemaType.Directives.ForName("extends"); dir != nil {
-			panic("@extends directive is not currently supported for interfaces.")
+			panic(
+				fmt.Sprintf(
+					"@extends directive is not currently supported for interfaces, use \"extend interface %s\" instead.",
+					schemaType.Name,
+				))
 		}
 	default:
 		// ignore

@@ -6,7 +6,7 @@ menu: { main: { parent: 'recipes' } }
 ---
 
 In this quick guide we are going to implement the example [Apollo Federation](https://www.apollographql.com/docs/apollo-server/federation/introduction/)
-server in gqlgen. You can find the finished result in the [examples directory](https://github.com/99designs/gqlgen/tree/master/example/federation).
+server in gqlgen. You can find the finished result in the [examples directory](https://github.com/99designs/gqlgen/tree/master/_examples/federation).
 
 ## Enable federation
 
@@ -17,6 +17,17 @@ Uncomment federation configuration in your `gqlgen.yml`
 federation:
   filename: graph/generated/federation.go
   package: generated
+```
+
+### Federation 2
+
+If you are using Apollo's Federation 2 standard, your schema should automatically be upgraded so long as you include the required `@link` directive within your schema. If you want to force Federation 2 composition, the `federation` configuration supports a `version` flag to override that. For example:
+
+```yml
+federation:
+  filename: graph/generated/federation.go
+  package: generated
+	version: 2
 ```
 
 ## Create the federated servers

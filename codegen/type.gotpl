@@ -152,7 +152,7 @@
 					if v == nil {
 						{{- if $type.GQL.NonNull }}
 							if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-								graphql.GetOperationContext(ctx).Errorf(ctx, "must not be null")
+								graphql.GetOperationContext(ctx).Errorf(ctx, "the requested element is null which the schema does not allow")
 							}
 						{{- end }}
 						return graphql.Null
@@ -175,7 +175,7 @@
 					{{- if $type.GQL.NonNull }}
 						if res == graphql.Null {
 							if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-								graphql.GetOperationContext(ctx).Errorf(ctx, "must not be null")
+								graphql.GetOperationContext(ctx).Errorf(ctx, "the requested element is null which the schema does not allow")
 							}
 						}
 					{{- end }}

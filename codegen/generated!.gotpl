@@ -25,7 +25,9 @@
 			sources: sources,
 			schema: gqlparser.MustLoadSchema(sources...),
 			fieldResolve: []map[string]func(context.Context, graphql.CollectedField, interface{}) (func(*graphql.FieldSet, int) bool, error){},
-	    	rootResolve: []map[string]func(context.Context, graphql.CollectedField) (func(*graphql.FieldSet, int) bool, error){},
+			queryResolvers: []func(context.Context, graphql.CollectedField) (func(*graphql.FieldSet, int) bool, error){},
+			mutationResolvers: []func(context.Context, graphql.CollectedField) (func(*graphql.FieldSet, int) bool, error){},
+			subscriptionResolvers: []func(context.Context, graphql.CollectedField) (func(*graphql.FieldSet, int) bool, error){},
 		}
 		return s
 	}
@@ -104,7 +106,9 @@
 		sources      []*ast.Source
 		schema       *ast.Schema
 		fieldResolve []map[string]func(context.Context, graphql.CollectedField, interface{}) (func(*graphql.FieldSet, int) bool, error)
-	    rootResolve  []map[string]func(context.Context, graphql.CollectedField) (func(*graphql.FieldSet, int) bool, error)
+	    queryResolvers 	  []func(context.Context, graphql.CollectedField) (func(*graphql.FieldSet, int) bool, error)
+		mutationResolvers []func(context.Context, graphql.CollectedField) (func(*graphql.FieldSet, int) bool, error)
+		subscriptionResolvers []func(context.Context, graphql.CollectedField) (func(*graphql.FieldSet, int) bool, error)
 	}
 
 	func (e *executableSchema) Schema() *ast.Schema {
@@ -123,18 +127,21 @@
 		}
 		e.schema = newSchema
 		e.fieldResolve = append(e.fieldResolve, ext.GetFieldResolvers()...)
-		e.rootResolve = append(e.rootResolve, ext.GetRootResolvers()...)
+		rootResolvers := ext.GetRootResolvers()
+		e.queryResolvers = append(e.queryResolvers, rootResolvers.Query)
+		e.mutationResolvers = append(e.mutationResolvers, rootResolvers.Query)
+		e.subscriptionResolvers = append(e.subscriptionResolvers, rootResolvers.Query)
 		return nil
 	}
 
-	func (e *executableSchema) GetRootResolvers() []map[string]func(ctx context.Context, field graphql.CollectedField) (func(*graphql.FieldSet, int) bool, error){
-		return []map[string]func( ctx context.Context, field graphql.CollectedField) (func(*graphql.FieldSet, int) bool, error){map[string]func( ctx context.Context, field graphql.CollectedField) (func(*graphql.FieldSet, int) bool, error){
-		{{- range $object := .Objects }}
-		{{- if $object.Root }}
-			{{$object.Name|quote}}: e._{{$object.Name}}_resolve_field,
-		{{- end }}
-		{{- end }}
-		}}
+	func (e *executableSchema) GetRootResolvers() graphql.SchemaRootResolvers {
+		return graphql.SchemaRootResolvers{
+			{{- range $object := .Objects }}
+			{{- if $object.Root }}
+			{{$object.Name}}: e._{{$object.Name}}_resolve_field,
+			{{- end }}
+			{{- end }}
+		}
 	}
 
 	func (e *executableSchema) GetFieldResolvers() []map[string]func(ctx context.Context, field graphql.CollectedField, val interface{}) (func(*graphql.FieldSet, int) bool, error){
@@ -246,7 +253,7 @@
 					return ec._{{.SubscriptionRoot.Name}}(ctx, rc.Operation.SelectionSet),nil
 				})
 			{{- else -}}
-				next := e._{{.SubscriptionRoot.Name}}(&ec, rc.Operation.SelectionSet)
+				next := e._{{.SubscriptionRoot.Name}}(ctx, rc.Operation.SelectionSet)
 			{{- end }}
 
 			var buf bytes.Buffer

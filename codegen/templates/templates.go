@@ -185,6 +185,7 @@ func Funcs() template.FuncMap {
 		"ucFirst":       UcFirst,
 		"lcFirst":       LcFirst,
 		"quote":         strconv.Quote,
+		"lower":         strings.ToLower,
 		"rawQuote":      rawQuote,
 		"dump":          Dump,
 		"ref":           ref,

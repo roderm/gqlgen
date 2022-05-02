@@ -1,6 +1,6 @@
 {{- range $object := .Objects }}{{- range $field := $object.Fields }}
 
-func (e *executableSchema) _{{$object.Name}}_{{$field.Name}}(ctx context.Context, field graphql.CollectedField{{ if not $object.Root }}, obj {{$object.Reference | ref}}{{end}}) (ret {{ if $object.Stream }}func(){{ end }}graphql.Marshaler) {
+func (e *executableSchema) _{{$object.Name}}_{{$field.Name}}(ctx context.Context, field graphql.CollectedField{{ if not $object.Root }}, obj {{$object.Reference | ref}}{{end}}) (ret {{ if $object.Stream }}func(ctx context.Context){{ end }}graphql.Marshaler) {
 	{{- $null := "graphql.Null" }}
 	{{- if $object.Stream }}
 		{{- $null = "nil" }}

@@ -9,6 +9,11 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 )
 
+type SchemaRootResolvers struct {
+	Query        func(context.Context, CollectedField) (func(*FieldSet, int) bool, error)
+	Mutation     func(context.Context, CollectedField) (func(*FieldSet, int) bool, error)
+	Subscription func(ctx context.Context, field CollectedField) func(ctx context.Context) Marshaler
+}
 type ExecutableSchema interface {
 	Schema() *ast.Schema
 
@@ -18,7 +23,7 @@ type ExecutableSchema interface {
 	Extend(ExecutableSchema) error
 
 	SchemaSources() []*ast.Source
-	GetRootResolvers() []map[string]func(context.Context, CollectedField) (func(*FieldSet, int) bool, error)
+	GetRootResolvers() SchemaRootResolvers
 	GetFieldResolvers() []map[string]func(context.Context, CollectedField, interface{}) (func(*FieldSet, int) bool, error)
 }
 

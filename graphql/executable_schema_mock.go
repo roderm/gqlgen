@@ -178,8 +178,8 @@ func (mock *ExecutableSchemaMock) SchemaCalls() []struct {
 	mock.lockSchema.RUnlock()
 	return calls
 }
-func (mock *ExecutableSchemaMock) GetRootResolvers() []map[string]func(context.Context, CollectedField) (func(*FieldSet, int) bool, error) {
-	return nil
+func (mock *ExecutableSchemaMock) GetRootResolvers() SchemaRootResolvers {
+	return SchemaRootResolvers{}
 }
 func (mock *ExecutableSchemaMock) GetFieldResolvers() []map[string]func(context.Context, CollectedField, interface{}) (func(*FieldSet, int) bool, error) {
 	return nil

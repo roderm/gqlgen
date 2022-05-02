@@ -108,7 +108,8 @@ func (e *executableSchema) _{{$object.Name}}_resolve_field(ctx context.Context, 
 	return nil, errors.New("unknown field " + strconv.Quote(field.Name))
 }
 func (e *executableSchema) _{{$object.Name}}(ctx context.Context, sel ast.SelectionSet{{ if not $object.Root }}, obj {{$object.Reference | ref }}{{ end }}) graphql.Marshaler {
-	fields := graphql.CollectFields(graphql.GetOperationContext(ctx), sel, {{$object.Name|lcFirst}}Implementors)
+	ec := executionContext{graphql.GetOperationContext(ctx), e}
+	fields := graphql.CollectFields(ec.OperationContext, sel, {{$object.Name|lcFirst}}Implementors)
     {{- if $object.Root }}
         ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
             Object: {{$object.Name|quote}},

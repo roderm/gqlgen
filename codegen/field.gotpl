@@ -5,6 +5,7 @@ func (e *executableSchema) _{{$object.Name}}_{{$field.Name}}(ctx context.Context
 	{{- if $object.Stream }}
 		{{- $null = "nil" }}
 	{{- end }}
+	ec := executionContext{graphql.GetOperationContext(ctx),e}
 	fc, err := ec.{{ $field.FieldContextFunc }}(ctx, field)
 	if err != nil {
 		return {{ $null }}
@@ -12,26 +13,17 @@ func (e *executableSchema) _{{$object.Name}}_{{$field.Name}}(ctx context.Context
 	ctx = graphql.WithFieldContext(ctx, fc)
 	defer func () {
 		if r := recover(); r != nil {
-			oc := graphql.GetOperationContext(ctx)
-			oc.Error(ctx, oc.Recover(ctx, r))
+			ec.Error(ctx, ec.Recover(ctx, r))
 			ret = {{ $null }}
 		}
 	}()
-	fc := &graphql.FieldContext{
-		Object: {{$object.Name|quote}},
-		Field: field,
-		Args:  nil,
-		IsMethod: {{or $field.IsMethod $field.IsResolver}},
-		IsResolver: {{ $field.IsResolver }},
-	}
 
 	ctx = graphql.WithFieldContext(ctx, fc)
 	{{- if $field.Args }}
 		rawArgs := field.ArgumentMap(graphql.GetOperationContext(ctx).Variables)
 		args, err := e.{{ $field.ArgsFunc }}(ctx,rawArgs)
 		if err != nil {
-			oc := graphql.GetOperationContext(ctx)
-			oc.Error(ctx, err)
+			ec.Error(ctx, err)
 			return {{ $null }}
 		}
 		fc.Args = args
@@ -45,16 +37,14 @@ func (e *executableSchema) _{{$object.Name}}_{{$field.Name}}(ctx context.Context
 			{{ template "field" $field }}
 		})
 		if err != nil {
-			oc := graphql.GetOperationContext(ctx)
-			oc.Error(ctx, err)
+			ec.Error(ctx, err)
 			return {{ $null }}
 		}
 	{{- end }}
 	if resTmp == nil {
 		{{- if $field.TypeReference.GQL.NonNull }}
 			if !graphql.HasFieldError(ctx, fc) {
-				oc := graphql.GetOperationContext(ctx)
-				oc.Errorf(ctx, "must not be null")
+				ec.Errorf(ctx, "must not be null")
 			}
 		{{- end }}
 		return {{ $null }}

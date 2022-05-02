@@ -112,10 +112,10 @@ func (e *executableSchema) GetRootResolvers() graphql.SchemaRootResolvers {
 }
 
 func (e *executableSchema) GetFieldResolvers() []map[string]func(context.Context, graphql.CollectedField, interface{}) (func(*graphql.FieldSet, int) bool, error){
-	return  []map[string]func(context.Context, graphql.CollectedField, interface{}) (func(*graphql.FieldSet, int) bool, error){map[string]func(context.Context, field graphql.CollectedField, val interface{}) (func(*graphql.FieldSet, int) bool, error){
+	return  []map[string]func(context.Context, graphql.CollectedField, interface{}) (func(*graphql.FieldSet, int) bool, error){map[string]func(context.Context, graphql.CollectedField, interface{}) (func(*graphql.FieldSet, int) bool, error){
 	{{- range $object := .Objects }}
 	{{- if not $object.Root }}
-		{{$object.Name|quote}}: func(context.Context, graphql.CollectedField, interface{}) (func(*graphql.FieldSet, int) bool, error) {
+		{{$object.Name|quote}}: func(ctx context.Context, field graphql.CollectedField, val interface{}) (func(*graphql.FieldSet, int) bool, error) {
 			obj, ok := val.({{$object.Reference | ref }})
 			if !ok {
 				return nil, errors.New("invalid type")
@@ -128,8 +128,8 @@ func (e *executableSchema) GetFieldResolvers() []map[string]func(context.Context
 }
 
 func (e *executableSchema) Complexity(typeName, field string, childComplexity int, rawArgs map[string]interface{}) (int, bool) {
-	// ec := executionContext{nil, e, context.TODO()}
-	// _ = ec
+	ec := executionContext{nil, e}
+	_ = ec
 	switch typeName + "." + field {
 	{{ range $object := .Objects }}
 		{{ if not $object.IsReserved }}
@@ -143,7 +143,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 						break
 						}
 						{{ if $field.Args }}
-							args, err := ec.{{ $field.ArgsFunc }}(&ec,rawArgs)
+							args, err := e.{{ $field.ArgsFunc }}(context.TODO(),rawArgs)
 							if err != nil {
 							return 0, false
 							}
@@ -249,17 +249,19 @@ type executionContext struct {
 }
 
 func (e *executableSchema) introspectSchema(ctx context.Context) (*introspection.Schema, error) {
+	ec := executionContext{graphql.GetOperationContext(ctx), e}
 	if ec.DisableIntrospection {
 		return nil, errors.New("introspection disabled")
 	}
-	return introspection.WrapSchema(ec.schema), nil
+	return introspection.WrapSchema(ec.Schema()), nil
 }
 
-func (ec *executionContext) introspectType(name string) (*introspection.Type, error) {
+func (e *executableSchema) introspectType(ctx context.Context, name string) (*introspection.Type, error) {
+	ec := executionContext{graphql.GetOperationContext(ctx), e}
 	if ec.DisableIntrospection {
 		return nil, errors.New("introspection disabled")
 	}
-	return introspection.WrapTypeFromDef(ec.schema, ec.schema.Types[name]), nil
+	return introspection.WrapTypeFromDef(ec.Schema(), ec.Schema().Types[name]), nil
 }
 
 var sources = []*ast.Source{

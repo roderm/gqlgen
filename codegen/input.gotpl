@@ -112,7 +112,8 @@
 			}
 		}
 
-		return {{$it}}, nil
+		err := ec.afterUnmarshalInput(ctx, &{{$it}}, obj)
+		return {{$it}}, err
 	}
 	{{- end }}
 {{ end }}

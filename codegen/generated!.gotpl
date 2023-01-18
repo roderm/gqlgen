@@ -98,11 +98,18 @@
 {{ if eq .Config.Exec.Layout "single-file" }}
 	type executableSchema graphql.ExecutableSchemaState[ResolverRoot, DirectiveRoot, ComplexityRoot]
 
-	func (e *executableSchema) Schema() *ast.Schema {
-		if e.SchemaData != nil {
-        		return e.SchemaData
+	func (es *executableSchema) afterUnmarshalInput(ctx context.Context, obj interface{}, value interface{}) error {
+		for _, fn := range es.afterUnmarshal {
+			if err := fn(ctx, obj, value); err != nil {
+				return err
+			}
 		}
-		return parsedSchema
+		return nil
+	}
+
+
+	func (e *executableSchema) Schema() *ast.Schema {
+		return gqlparser.MustLoadSchema(e.sources...)
 	}
 
 	func (e *executableSchema) Complexity(ctx context.Context, typeName, field string, childComplexity int, rawArgs map[string]any) (int, bool) {

@@ -17,7 +17,17 @@
 
 // NewExecutableSchema creates an ExecutableSchema from the ResolverRoot interface.
 func NewExecutableSchema(cfg Config) graphql.ExecutableSchema {
+<<<<<<< HEAD
 	return &executableSchema{SchemaData: cfg.Schema, Resolvers: cfg.Resolvers, Directives: cfg.Directives, ComplexityRoot: cfg.Complexity}
+=======
+	return &executableSchema{
+		schema: cfg.Schema,
+		resolvers: cfg.Resolvers,
+		directives: cfg.Directives,
+		complexity: cfg.Complexity,
+		sources: sources,
+	}
+>>>>>>> b9b714dc (allow source and schema manipulation)
 }
 
 type Config = graphql.Config[ResolverRoot, DirectiveRoot, ComplexityRoot]
@@ -66,11 +76,16 @@ type ComplexityRoot struct {
 
 type executableSchema graphql.ExecutableSchemaState[ResolverRoot, DirectiveRoot, ComplexityRoot]
 
-func (e *executableSchema) Schema() *ast.Schema {
-	if e.SchemaData != nil {
-			return e.SchemaData
+func (es *executableSchema) afterUnmarshalInput(ctx context.Context, obj interface{}, value interface{}) error {
+	for _, fn := range es.afterUnmarshal {
+		if err := fn(ctx, obj, value); err != nil {
+			return err
+		}
 	}
-	return parsedSchema
+	return nil
+}
+func (e *executableSchema) Schema() *ast.Schema {
+	return gqlparser.MustLoadSchema(e.sources...)
 }
 
 func (e *executableSchema) Complexity(ctx context.Context, typeName, field string, childComplexity int, rawArgs map[string]any) (int, bool) {
@@ -281,4 +296,4 @@ var sources = []*ast.Source{
 	{Name: {{$source.RelativePath|quote}}, Input: {{if (not $source.Embeddable)}}{{$source.Source|rawQuote}}{{else}}sourceData({{$source.RelativePath|quote}}){{end}}, BuiltIn: {{$source.BuiltIn}}},
 {{- end }}
 }
-var parsedSchema = gqlparser.MustLoadSchema(sources...)
+// var parsedSchema = gqlparser.MustLoadSchema(sources...)

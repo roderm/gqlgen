@@ -163,9 +163,9 @@
 		}
 		return {{$it}}, graphql.ErrorOnPath(ctx, fmt.Errorf(`unexpected type %T from INPUT_OBJECT directive, should be {{ if $input.PointersInUnmarshalInput }}*{{ end }}{{$input.Type | ref}}`, tmp))
 		{{- else }}
-		return {{$it}}, nil
+		err := ec.afterUnmarshalInput(ctx, &{{$it}}, obj)
+		return {{$it}}, err
 		{{- end }}
 	}
 	{{- end }}
 {{ end }}
-

@@ -96,10 +96,22 @@
 		resolvers  ResolverRoot
 		directives DirectiveRoot
 		complexity ComplexityRoot
+		sources []*ast.Source
+		afterUnmarshal []func(ctx context.Context, obj interface{}, value interface{}) error
 	}
 
+	func (es *executableSchema) afterUnmarshalInput(ctx context.Context, obj interface{}, value interface{}) error {
+		for _, fn := range es.afterUnmarshal {
+			if err := fn(ctx, obj, value); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+
 	func (e *executableSchema) Schema() *ast.Schema {
-		return parsedSchema
+		return gqlparser.MustLoadSchema(e.sources...)
 	}
 
 	func (e *executableSchema) Complexity(typeName, field string, childComplexity int, rawArgs map[string]interface{}) (int, bool) {

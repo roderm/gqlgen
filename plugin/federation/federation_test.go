@@ -3,9 +3,10 @@ package federation
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/99designs/gqlgen/codegen"
 	"github.com/99designs/gqlgen/codegen/config"
-	"github.com/stretchr/testify/require"
 )
 
 func TestWithEntities(t *testing.T) {
@@ -142,6 +143,50 @@ func TestCodeGenerationFederation2(t *testing.T) {
 		panic(err)
 	}
 	require.NoError(t, f.GenerateCode(data))
+}
+
+// This test is to ensure that the input arguments are not
+// changed when cfg.OmitSliceElementPointers is false OR true
+func TestMultiWithOmitSliceElemPointersCfg(t *testing.T) {
+
+	staticRepsString := "reps: [HelloByNamesInput]!"
+	t.Run("OmitSliceElementPointers true", func(t *testing.T) {
+		f, cfg := load(t, "testdata/multi/multi.yml")
+		cfg.OmitSliceElementPointers = true
+		err := f.MutateConfig(cfg)
+		require.NoError(t, err)
+		require.Len(t, cfg.Schema.Types["_Entity"].Types, 1)
+		require.Len(t, f.Entities, 1)
+
+		entityGraphqlGenerated := false
+		for _, source := range cfg.Sources {
+			if source.Name != "federation/entity.graphql" {
+				continue
+			}
+			entityGraphqlGenerated = true
+			require.Contains(t, source.Input, staticRepsString)
+		}
+		require.True(t, entityGraphqlGenerated)
+	})
+
+	t.Run("OmitSliceElementPointers false", func(t *testing.T) {
+		f, cfg := load(t, "testdata/multi/multi.yml")
+		cfg.OmitSliceElementPointers = false
+		err := f.MutateConfig(cfg)
+		require.NoError(t, err)
+		require.Len(t, cfg.Schema.Types["_Entity"].Types, 1)
+		require.Len(t, f.Entities, 1)
+
+		entityGraphqlGenerated := false
+		for _, source := range cfg.Sources {
+			if source.Name != "federation/entity.graphql" {
+				continue
+			}
+			entityGraphqlGenerated = true
+			require.Contains(t, source.Input, staticRepsString)
+		}
+		require.True(t, entityGraphqlGenerated)
+	})
 }
 
 func TestInjectSourceLate(t *testing.T) {

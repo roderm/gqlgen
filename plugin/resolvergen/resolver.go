@@ -81,13 +81,18 @@ func (m *Plugin) generateSingleFile(data *codegen.Data) error {
 		OmitTemplateComment: data.Config.Resolver.OmitTemplateComment,
 	}
 
+	newResolverTemplate := resolverTemplate
+	if data.Config.Resolver.ResolverTemplate != "" {
+		newResolverTemplate = readResolverTemplate(data.Config.Resolver.ResolverTemplate)
+	}
+
 	return templates.Render(templates.Options{
 		PackageName: data.Config.Resolver.Package,
 		FileNotice:  `// THIS CODE IS A STARTING POINT ONLY. IT WILL NOT BE UPDATED WITH SCHEMA CHANGES.`,
 		Filename:    data.Config.Resolver.Filename,
 		Data:        resolverBuild,
 		Packages:    data.Config.Packages,
-		Template:    resolverTemplate,
+		Template:    newResolverTemplate,
 	})
 }
 
@@ -105,9 +110,12 @@ func (m *Plugin) generatePerSchema(data *codegen.Data) error {
 
 	for _, o := range objects {
 		if o.HasResolvers() {
-			fn := gqlToResolverName(data.Config.Resolver.Dir(), o.Position.Src.Name, data.Config.Resolver.FilenameTemplate)
+			fnCase := gqlToResolverName(data.Config.Resolver.Dir(), o.Position.Src.Name, data.Config.Resolver.FilenameTemplate)
+			fn := strings.ToLower(fnCase)
 			if files[fn] == nil {
-				files[fn] = &File{}
+				files[fn] = &File{
+					name: fnCase,
+				}
 			}
 
 			caser := cases.Title(language.English, cases.NoLower)
@@ -145,21 +153,28 @@ func (m *Plugin) generatePerSchema(data *codegen.Data) error {
 			}
 
 			resolver := Resolver{o, f, rewriter.GetPrevDecl(structName, f.GoFieldName), comment, implementation}
-			fn := gqlToResolverName(data.Config.Resolver.Dir(), f.Position.Src.Name, data.Config.Resolver.FilenameTemplate)
+			fnCase := gqlToResolverName(data.Config.Resolver.Dir(), f.Position.Src.Name, data.Config.Resolver.FilenameTemplate)
+			fn := strings.ToLower(fnCase)
 			if files[fn] == nil {
-				files[fn] = &File{}
+				files[fn] = &File{
+					name: fnCase,
+				}
 			}
 
 			files[fn].Resolvers = append(files[fn].Resolvers, &resolver)
 		}
 	}
 
-	for filename, file := range files {
-		file.imports = rewriter.ExistingImports(filename)
-		file.RemainingSource = rewriter.RemainingSource(filename)
+	for _, file := range files {
+		file.imports = rewriter.ExistingImports(file.name)
+		file.RemainingSource = rewriter.RemainingSource(file.name)
+	}
+	newResolverTemplate := resolverTemplate
+	if data.Config.Resolver.ResolverTemplate != "" {
+		newResolverTemplate = readResolverTemplate(data.Config.Resolver.ResolverTemplate)
 	}
 
-	for filename, file := range files {
+	for _, file := range files {
 		resolverBuild := &ResolverBuild{
 			File:                file,
 			PackageName:         data.Config.Resolver.Package,
@@ -183,10 +198,10 @@ func (m *Plugin) generatePerSchema(data *codegen.Data) error {
 		err := templates.Render(templates.Options{
 			PackageName: data.Config.Resolver.Package,
 			FileNotice:  fileNotice.String(),
-			Filename:    filename,
+			Filename:    file.name,
 			Data:        resolverBuild,
 			Packages:    data.Config.Packages,
-			Template:    resolverTemplate,
+			Template:    newResolverTemplate,
 		})
 		if err != nil {
 			return err
@@ -221,6 +236,7 @@ type ResolverBuild struct {
 }
 
 type File struct {
+	name string
 	// These are separated because the type definition of the resolver object may live in a different file from the
 	// resolver method implementations, for example when extending a type in a different graphql schema file
 	Objects         []*codegen.Object
@@ -256,4 +272,12 @@ func gqlToResolverName(base string, gqlname, filenameTmpl string) string {
 	}
 	filename := strings.ReplaceAll(filenameTmpl, "{name}", strings.TrimSuffix(gqlname, ext))
 	return filepath.Join(base, filename)
+}
+
+func readResolverTemplate(customResolverTemplate string) string {
+	contentBytes, err := os.ReadFile(customResolverTemplate)
+	if err != nil {
+		panic(err)
+	}
+	return string(contentBytes)
 }

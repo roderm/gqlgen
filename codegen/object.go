@@ -7,10 +7,11 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/99designs/gqlgen/codegen/config"
 	"github.com/vektah/gqlparser/v2/ast"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+
+	"github.com/99designs/gqlgen/codegen/config"
 )
 
 type GoFieldType int
@@ -112,8 +113,8 @@ func (o *Object) HasResolvers() bool {
 }
 
 func (o *Object) HasUnmarshal() bool {
-	if o.Type == config.MapType {
-		return true
+	if o.IsMap() {
+		return false
 	}
 	for i := 0; i < o.Type.(*types.Named).NumMethods(); i++ {
 		if o.Type.(*types.Named).Method(i).Name() == "UnmarshalGQL" {
@@ -147,6 +148,10 @@ func (o *Object) IsConcurrent() bool {
 
 func (o *Object) IsReserved() bool {
 	return strings.HasPrefix(o.Definition.Name, "__")
+}
+
+func (o *Object) IsMap() bool {
+	return o.Type == config.MapType
 }
 
 func (o *Object) Description() string {

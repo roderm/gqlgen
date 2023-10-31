@@ -30,6 +30,8 @@ federation:
 model:
   filename: graph/model/models_gen.go
   package: model
+  # Optional: Pass in a path to a new gotpl template to use for generating the models
+  # model_template: [your/path/model.gotpl]
 
 # Where should the resolver implementations go?
 resolver:
@@ -39,6 +41,8 @@ resolver:
   filename_template: "{name}.resolvers.go"
   # Optional: turn on to not generate template comments above resolvers
   # omit_template_comment: false
+  # Optional: Pass in a path to a new gotpl template to use for generating resolvers
+  # resolver_template: [your/path/resolver.gotpl]
 
 # Optional: turn on use ` + "`" + `gqlgen:"fieldName"` + "`" + ` tags in your models
 # struct_tag: json
@@ -80,6 +84,11 @@ resolver:
 # Optional: set to skip running `go mod tidy` when generating server code
 # skip_mod_tidy: true
 
+# Optional: set build tags that will be used to load packages
+# go_build_tags:
+#  - private
+#  - enterprise
+
 # Optional: set to modify the initialisms regarded for Go names
 # go_initialisms:
 #   replace_defaults: false # if true, the default initialisms will get dropped in favor of the new ones instead of being added
@@ -109,6 +118,9 @@ models:
       - github.com/99designs/gqlgen/graphql.Int
       - github.com/99designs/gqlgen/graphql.Int64
       - github.com/99designs/gqlgen/graphql.Int32
+  UUID:
+    model:
+      - github.com/99designs/gqlgen/graphql.UUID
 ```
 
 Everything has defaults, so add things as you need.
@@ -123,12 +135,13 @@ To start using them you first need to define them:
 directive @goModel(
 	model: String
 	models: [String!]
+	forceGenerate: Boolean
 ) on OBJECT | INPUT_OBJECT | SCALAR | ENUM | INTERFACE | UNION
 
 directive @goField(
 	forceResolver: Boolean
 	name: String
-  omittable: Boolean
+	omittable: Boolean
 ) on INPUT_FIELD_DEFINITION | FIELD_DEFINITION
 
 directive @goTag(
@@ -151,6 +164,12 @@ type User @goModel(model: "github.com/my/app/models.User") {
 		@goField(forceResolver: true)
 		@goTag(key: "xorm", value: "-")
 		@goTag(key: "yaml")
+}
+
+# This make sense when autobind activated.
+type Person @goModel(forceGenerate: true) {
+	id: ID!
+	name: String!
 }
 ```
 

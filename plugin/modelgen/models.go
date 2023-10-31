@@ -4,14 +4,16 @@ import (
 	_ "embed"
 	"fmt"
 	"go/types"
+	"os"
 	"sort"
 	"strings"
 	"text/template"
 
+	"github.com/vektah/gqlparser/v2/ast"
+
 	"github.com/99designs/gqlgen/codegen/config"
 	"github.com/99designs/gqlgen/codegen/templates"
 	"github.com/99designs/gqlgen/plugin"
-	"github.com/vektah/gqlparser/v2/ast"
 )
 
 //go:embed models.gotpl
@@ -51,6 +53,7 @@ type Interface struct {
 	Fields      []*Field
 	Implements  []string
 	OmitCheck   bool
+	Models      []*Object
 }
 
 type Object struct {
@@ -199,6 +202,15 @@ func (m *Plugin) MutateConfig(cfg *config.Config) error {
 		cfg.Models.Add(it.Name, cfg.Model.ImportPath()+"."+templates.ToGo(it.Name))
 	}
 	for _, it := range b.Interfaces {
+		// On a given interface we want to keep a reference to all the models that implement it
+		for _, model := range b.Models {
+			for _, impl := range model.Implements {
+				if impl == it.Name {
+					// If it does, add it to the Interface's Models
+					it.Models = append(it.Models, model)
+				}
+			}
+		}
 		cfg.Models.Add(it.Name, cfg.Model.ImportPath()+"."+templates.ToGo(it.Name))
 	}
 	for _, it := range b.Scalars {
@@ -282,6 +294,10 @@ func (m *Plugin) MutateConfig(cfg *config.Config) error {
 		"getInterfaceByName": getInterfaceByName,
 		"generateGetter":     generateGetter,
 	}
+	newModelTemplate := modelTemplate
+	if cfg.Model.ModelTemplate != "" {
+		newModelTemplate = readModelTemplate(cfg.Model.ModelTemplate)
+	}
 
 	err := templates.Render(templates.Options{
 		PackageName:     cfg.Model.Package,
@@ -289,7 +305,7 @@ func (m *Plugin) MutateConfig(cfg *config.Config) error {
 		Data:            b,
 		GeneratedHeader: true,
 		Packages:        cfg.Packages,
-		Template:        modelTemplate,
+		Template:        newModelTemplate,
 		Funcs:           funcMap,
 	})
 	if err != nil {
@@ -553,17 +569,19 @@ func removeDuplicateTags(t string) string {
 			continue
 		}
 
-		processed[kv[0]] = true
+		key := kv[0]
+		value := strings.Join(kv[1:], ":")
+		processed[key] = true
 		if len(returnTags) > 0 {
 			returnTags = " " + returnTags
 		}
 
-		isContained := containsInvalidSpace(kv[1])
+		isContained := containsInvalidSpace(value)
 		if isContained {
-			panic(fmt.Errorf("tag value should not contain any leading or trailing spaces: %s", kv[1]))
+			panic(fmt.Errorf("tag value should not contain any leading or trailing spaces: %s", value))
 		}
 
-		returnTags = kv[0] + ":" + kv[1] + returnTags
+		returnTags = key + ":" + value + returnTags
 	}
 
 	return returnTags
@@ -644,4 +662,12 @@ func findAndHandleCyclicalRelationships(b *ModelBuild) {
 			}
 		}
 	}
+}
+
+func readModelTemplate(customModelTemplate string) string {
+	contentBytes, err := os.ReadFile(customModelTemplate)
+	if err != nil {
+		panic(err)
+	}
+	return string(contentBytes)
 }

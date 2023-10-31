@@ -3,6 +3,7 @@ module github.com/99designs/gqlgen
 go 1.18
 
 require (
+	github.com/google/uuid v1.3.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/golang-lru/v2 v2.0.3
 	github.com/kevinmbeaulieu/eq-go v1.0.0
@@ -11,9 +12,10 @@ require (
 	github.com/mattn/go-colorable v0.1.13
 	github.com/mattn/go-isatty v0.0.19
 	github.com/mitchellh/mapstructure v1.5.0
+	github.com/sosodev/duration v1.1.0
 	github.com/stretchr/testify v1.8.2
 	github.com/urfave/cli/v2 v2.25.5
-	github.com/vektah/gqlparser/v2 v2.5.7
+	github.com/vektah/gqlparser/v2 v2.5.10
 	golang.org/x/text v0.9.0
 	golang.org/x/tools v0.9.3
 	google.golang.org/protobuf v1.30.0

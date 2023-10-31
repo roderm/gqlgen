@@ -6,10 +6,11 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/99designs/gqlgen/codegen"
-	"github.com/99designs/gqlgen/codegen/config"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/tools/go/packages"
+
+	"github.com/99designs/gqlgen/codegen"
+	"github.com/99designs/gqlgen/codegen/config"
 )
 
 func TestLayoutSingleFile(t *testing.T) {
@@ -81,6 +82,22 @@ func TestOmitTemplateComment(t *testing.T) {
 
 	require.NoError(t, p.GenerateCode(data))
 	assertNoErrors(t, "github.com/99designs/gqlgen/plugin/resolvergen/testdata/omit_template_comment/out")
+}
+
+func TestCustomResolverTemplate(t *testing.T) {
+	_ = syscall.Unlink("testdata/resolvertemplate/out/resolver.go")
+	cfg, err := config.LoadConfig("testdata/resolvertemplate/gqlgen.yml")
+	require.NoError(t, err)
+	p := Plugin{}
+
+	require.NoError(t, cfg.Init())
+
+	data, err := codegen.BuildData(cfg)
+	if err != nil {
+		panic(err)
+	}
+
+	require.NoError(t, p.GenerateCode(data))
 }
 
 func testFollowSchemaPersistence(t *testing.T, dir string) {

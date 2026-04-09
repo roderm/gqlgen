@@ -14,6 +14,6 @@ type ExecutableSchemaState[R any, D any, C any] struct {
 	Directives     D
 	ComplexityRoot C
 
-	sources        []*ast.Source
-	afterUnmarshal []func(ctx context.Context, obj interface{}, value interface{}) error
+	Sources             []*ast.Source
+	AfterInputUnmarshal []func(ctx context.Context, obj interface{}, value interface{}) error
 }

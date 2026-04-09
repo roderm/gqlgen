@@ -85,7 +85,7 @@ func (es *executableSchema) afterUnmarshalInput(ctx context.Context, obj interfa
 	return nil
 }
 func (e *executableSchema) Schema() *ast.Schema {
-	return gqlparser.MustLoadSchema(e.sources...)
+	return gqlparser.MustLoadSchema(e.Sources...)
 }
 
 func (e *executableSchema) Complexity(ctx context.Context, typeName, field string, childComplexity int, rawArgs map[string]any) (int, bool) {

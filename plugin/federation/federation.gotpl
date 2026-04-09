@@ -22,7 +22,7 @@ func (ec *executionContext) __resolve__service(ctx context.Context) (fedruntime.
 
 	var sdl []string
 
-	for _, src := range ec.sources {
+	for _, src := range ec.Sources {
 		if src.BuiltIn {
 			continue
 		}

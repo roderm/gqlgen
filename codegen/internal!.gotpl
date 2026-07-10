@@ -15,65 +15,13 @@
 
 {{ $useFunctionSyntaxForExecutionContext := .Config.UseFunctionSyntaxForExecutionContext }}
 
-// NewExecutableSchema creates an ExecutableSchema from the ResolverRoot interface.
-func NewExecutableSchema(cfg Config) graphql.ExecutableSchema {
-	return &executableSchema{
-		schema: cfg.Schema,
-		resolvers: cfg.Resolvers,
-		directives: cfg.Directives,
-		complexity: cfg.Complexity,
-		sources: sources,
-	}
-}
-
-type Config = graphql.Config[ResolverRoot, DirectiveRoot, ComplexityRoot]
-
-type ResolverRoot interface {
-{{- range $object := .Objects -}}
-	{{ if $object.HasResolvers -}}
-		{{ucFirst $object.Name}}() {{ucFirst $object.Name}}Resolver
-	{{ end }}
-{{- end }}
-{{- range $object := .Inputs -}}
-	{{ if $object.HasResolvers -}}
-		{{ucFirst $object.Name}}() {{ucFirst $object.Name}}Resolver
-	{{ end }}
-{{- end }}
-}
-
-type DirectiveRoot struct {
-{{ range $directive := .UserDirectives }}
-	{{- $directive.Declaration }}
-{{ end }}
-}
-
-type ComplexityRoot struct {
-{{- if not .Config.OmitComplexity }}
-{{ range $object := .Objects }}
-	{{ if not $object.IsReserved -}}
-		{{ ucFirst $object.Name }} struct {
-		{{ range $_, $fields := $object.UniqueFields }}
-			{{- $field := index $fields 0 -}}
-			{{ if not $field.IsReserved -}}
-				{{ $field.GoFieldName }} {{ $field.ComplexitySignature }}
-			{{ end }}
-		{{- end }}
-		}
-	{{- end }}
-{{ end }}
-{{- end }}
-}
-
-{{ range $directive := .BuiltInDirectives }}
-	var (
-		{{- $directive.FunctionImpl }}
-	)
-{{ end }}
-
 type executableSchema graphql.ExecutableSchemaState[ResolverRoot, DirectiveRoot, ComplexityRoot]
 
 func (e *executableSchema) Schema() *ast.Schema {
-	return gqlparser.MustLoadSchema(e.Sources...)
+	if e.SchemaData == nil {
+		e.SchemaData = gqlparser.MustLoadSchema(e.Sources...)
+	}
+	return e.SchemaData
 }
 
 func (e *executableSchema) Complexity(ctx context.Context, typeName, field string, childComplexity int, rawArgs map[string]any) (int, bool) {
@@ -254,7 +202,7 @@ func newExecutionContext(
 		ExecutionContextState: graphql.NewExecutionContextState[ResolverRoot, DirectiveRoot, ComplexityRoot](
 			opCtx,
 			(*graphql.ExecutableSchemaState[ResolverRoot, DirectiveRoot, ComplexityRoot])(execSchema),
-			parsedSchema,
+			execSchema.Schema(),
 			deferredResults,
 		),
 	}
